@@ -1,10 +1,11 @@
 {
-  "enabledPlugins": {
-    "hackathon-in-a-plugin@devpost-curriculum": true
-  },
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "Bash(C:/Users/presyze/flutter/bin/flutter pub:*)"
     ]
+  },
+  "enabledPlugins": {
+    "hackathon-in-a-plugin@devpost-curriculum": true
   }
 }

@@ -129,3 +129,20 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 - Q4: Drift codegen as a hidden dependency → confirmed Aakash will run `build_runner` manually; checklist flags it explicitly.
 
 **Active shaping:** Aakash accepted the proposed sequencing without modification. His one meaningful contribution during the checklist conversation was pushing back on the highlighting verification step — asked for more scenarios and cases, which led to a meaningfully more thorough test surface for the riskiest item on the list. Low engagement overall vs /spec and /prd; he arrived knowing what he wanted and primarily validated the proposed plan.
+
+## /build
+
+### Step 1: Project setup + design system
+
+**What was built:**
+- `pubspec.yaml` updated with all 14 runtime dependencies and 4 dev dependencies as specified in spec.md
+- `assets/js/` folder created with placeholder `selection_listener.js` and `highlight_restore.js`
+- `lib/theme/app_colors.dart` — all light + dark color constants
+- `lib/theme/app_theme.dart` — `ThemeData` light + dark using DM Sans, full typography scale, component overrides for Card, ElevatedButton, ProgressIndicator, BottomSheet, Drawer, ListTile
+- `lib/app.dart` — stub `LearnStackApp` (MaterialApp with light/dark theme, placeholder home screen showing teal ElevatedButton)
+- `lib/main.dart` — `runApp` wrapped in `ProviderScope`
+- `flutter pub get` ran successfully: 101 packages resolved
+
+**Issues:** None. All dependencies resolved cleanly.
+
+**Verification:** Pending — learner to run `flutter run` and confirm DM Sans renders, teal accent visible, no errors.

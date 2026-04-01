@@ -13,7 +13,7 @@ class LearnStackApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'LearnStack',
+      title: 'Read4ever',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.system,
@@ -35,7 +35,7 @@ class _PlaceholderScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'LearnStack',
+              'Read4ever',
               style: theme.textTheme.displayLarge,
             ),
             const SizedBox(height: 16),
