@@ -88,3 +88,44 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 - Asked a genuinely good question about whether native system selection toolbar could be used for highlights — this led to a better architecture than the original custom overlay plan
 - Specified "flexible, modular, secure, scalable" + best practices as a constraint — led to 3-layer JS bridge split and freezed/AsyncValue patterns
 - Consistently deferred on package-level and architecture decisions while actively shaping design and UX decisions
+
+## /checklist
+
+**Sequencing decisions and rationale:**
+- Foundation first: design system → navigation shell → DB layer, because every subsequent item depends on these
+- Risky items early: Reader (item 7) and Highlighting (item 8) are in the first half — both have the most unknowns (flutter_inappwebview ContextMenu API, XPath JS bridge reliability). Validated against a real surface before 7 other screens are built on top
+- Import system split into 5a (SitemapService) and 5b (ImportScreen) after deepening round — sitemap HTTP/XML work and dialog UI are independent enough to isolate
+- Bookmarks comes before Highlights screen because the bookmark toggle is already built in the reader; Highlights screen is more complex (filter, scroll-to-highlight)
+- Multi-select (item 13) comes after all 3 target screens are built — it's a retrofit pattern, cleaner to apply once each screen's data and actions are stable
+- Settings before multi-select because Settings touches SharedPreferences/ThemeNotifier infrastructure needed throughout; multi-select is pure UI retrofit
+
+**Methodology preferences:**
+- Build mode: Step-by-step
+- Comprehension checks: Yes
+- Verification: Yes, per item (learner runs app after each item)
+- Git: Commit after each item
+- Check-in cadence: Learning-driven — more discussion and explanation of decisions/tradeoffs during build
+
+**Item count and estimated time:**
+- 15 items total (after splitting Import into 5a/5b and Settings+Multi-select into 11/12)
+- Estimated 15–30 min verification + discussion per item → roughly 4–7 hours total
+
+**What Aakash was confident about vs needed guidance on:**
+- Confident: sequencing logic (immediately identified reader/highlighting as the riskiest pieces); agreed the foundation-first order was right without pushback
+- No strong opinions on splits — accepted both the Import split and the Settings/Multi-select split when proposed
+- Deepening round: chose to run 1 round; actively improved the highlighting verification step (asked for more scenarios and edge cases)
+
+**Submission planning notes:**
+- Core story confirmed: "LearnStack turns scattered online docs and guides into structured, trackable reading units"
+- Wow moments: import dialog (smart chapter detection) + reader with highlight marked
+- GitHub repo already exists
+- Deployment: GitHub Release with release APK (v1.0.0)
+- Demo video: not planned, optional
+
+**Deepening rounds:** 1 round, 4 questions.
+- Q1: Import system too big → split into SitemapService + ImportScreen. Accepted immediately.
+- Q2: Settings + Multi-select too broad → split into two items. Accepted immediately.
+- Q3: Highlighting verification specificity → Aakash pushed back, asked for more scenarios and edge cases. Led to an expanded 8-scenario verification list covering DOM-spanning selections, cross-chapter bleed-through, note editing, and scroll-to-highlight from Highlights screen.
+- Q4: Drift codegen as a hidden dependency → confirmed Aakash will run `build_runner` manually; checklist flags it explicitly.
+
+**Active shaping:** Aakash accepted the proposed sequencing without modification. His one meaningful contribution during the checklist conversation was pushing back on the highlighting verification step — asked for more scenarios and cases, which led to a meaningfully more thorough test surface for the riskiest item on the list. Low engagement overall vs /spec and /prd; he arrived knowing what he wanted and primarily validated the proposed plan.
