@@ -18,7 +18,7 @@
   Acceptance: App compiles and runs. DM Sans font renders. Teal accent color is visible on at least one widget. No missing-asset errors.
   Verify: Run `flutter run` — app launches without errors. Confirm DM Sans is rendering (not the default Roboto). Confirm the teal accent color is present on any visible widget (e.g. a temporary ElevatedButton). Check debug console for asset or theme errors — there should be none.
 
-- [ ] **2. Navigation shell + stub screens**
+- [x] **2. Navigation shell + stub screens**
   Spec ref: `spec.md > Navigation > Shell Routes`, `spec.md > Navigation > Full-Screen Routes`, `spec.md > File Structure`
   What to build: Create `lib/router.dart` with the full go_router config: a `ShellRoute` wrapping `/library`, `/bookmarks`, `/highlights`, `/settings`, plus full-screen routes `/resource/:id`, `/reader/:chapterId`, and `/import`. Create `DrawerScaffold` widget with a `Drawer` containing 4 `NavigationDrawerDestination` items (Library, Bookmarks, Highlights, Settings); active route derived from `GoRouterState`. Create stub `Scaffold` screens for all 7 routes (just a title + placeholder body). Wire `lib/app.dart` with `MaterialApp.router` using `ThemeMode.system` for now (ThemeNotifier comes later). Update `main.dart` to use the real router.
   Acceptance: App launches, drawer opens from all 4 shell destinations, each destination shows its correct title, and full-screen routes push on top of the shell without the drawer visible.

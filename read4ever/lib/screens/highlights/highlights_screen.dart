@@ -5,9 +5,6 @@ class HighlightsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Highlights')),
-      body: const Center(child: Text('Highlights — coming soon')),
-    );
+    return const Center(child: Text('Highlights — coming soon'));
   }
 }

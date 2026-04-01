@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "Bash(C:/Users/presyze/flutter/bin/flutter pub:*)"
+      "Bash(C:/Users/presyze/flutter/bin/flutter pub:*)",
+      "Bash(/c/Users/presyze/flutter/bin/flutter analyze:*)"
     ]
   },
   "enabledPlugins": {

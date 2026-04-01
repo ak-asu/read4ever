@@ -132,6 +132,20 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 2: Navigation shell + stub screens
+
+**What was built:**
+- `lib/router.dart` — full go_router config with `ShellRoute` wrapping `/library`, `/bookmarks`, `/highlights`, `/settings`; full-screen routes `/resource/:id`, `/reader/:chapterId`, `/import`
+- `lib/widgets/drawer_scaffold.dart` — `DrawerScaffold` widget with `NavigationDrawer`, 4 destinations, active route derived from `GoRouterState.uri`
+- Stub `Scaffold` screens for all 7 routes (title + placeholder body text)
+- `lib/app.dart` updated to `MaterialApp.router` with real `appRouter`
+- Placeholder test file updated (removed reference to deleted `MyApp` class)
+- `flutter analyze` — no issues
+
+**Issues:** Unused import in `router.dart` (fixed) and stale `widget_test.dart` referencing removed `MyApp` (fixed).
+
+**Verification:** Pending — learner to run `flutter run`, open drawer, tap all 4 destinations, and verify full-screen routes push correctly.
+
 ### Step 1: Project setup + design system
 
 **What was built:**
