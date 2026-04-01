@@ -13,16 +13,66 @@ class ResourcesDao extends DatabaseAccessor<AppDatabase>
     with _$ResourcesDaoMixin {
   ResourcesDao(super.db);
 
-  // Implemented in step 4 — complex sort + GROUP BY query
   // ORDER: in-progress → not-started → done, then by lastAccessedAt DESC
-  Stream<List<ResourceWithStatus>> watchAll() => throw UnimplementedError();
+  Stream<List<ResourceWithStatus>> watchAll() {
+    final query = customSelect(
+      '''
+      SELECT sub.* FROM (
+        SELECT
+          r.id, r.title, r.description, r.url,
+          r.created_at, r.last_accessed_at, r.last_opened_chapter_id,
+          COUNT(c.id) AS total_count,
+          COALESCE(SUM(c.is_done), 0) AS done_count,
+          CASE
+            WHEN COALESCE(SUM(c.is_done), 0) = COUNT(c.id) AND COUNT(c.id) > 0 THEN 2
+            WHEN COALESCE(SUM(c.is_done), 0) > 0 THEN 0
+            ELSE 1
+          END AS sort_priority
+        FROM resources r
+        LEFT JOIN chapters c ON c.resource_id = r.id
+        GROUP BY r.id
+      ) sub
+      ORDER BY sub.sort_priority ASC, sub.last_accessed_at DESC NULLS LAST
+      ''',
+      readsFrom: {resources, chapters},
+    );
+    return query.watch().map(
+      (rows) => rows.map(ResourceWithStatus.fromRow).toList(),
+    );
+  }
 
-  // Implemented in step 4 — resource row + ordered chapter list
+  // Implemented in step 11 (Resource Detail screen)
   Stream<ResourceWithChapters> watchById(int id) => throw UnimplementedError();
 
-  // Implemented in step 4 — last 3 in-progress by lastAccessedAt DESC
-  Stream<List<ResourceWithChapter>> watchContinueReading() =>
-      throw UnimplementedError();
+  // Last 3 in-progress resources (at least 1 done, not all done) by lastAccessedAt DESC
+  Stream<List<ResourceWithChapter>> watchContinueReading() {
+    final query = customSelect(
+      '''
+      SELECT
+        r.id, r.title, r.description, r.url,
+        r.created_at, r.last_accessed_at, r.last_opened_chapter_id,
+        c.id AS chapter_id,
+        c.resource_id AS chapter_resource_id,
+        c.title AS chapter_title,
+        c.url AS chapter_url,
+        c.position AS chapter_position,
+        c.is_done AS chapter_is_done,
+        c.bookmarked_at AS chapter_bookmarked_at,
+        c.created_at AS chapter_created_at
+      FROM resources r
+      INNER JOIN chapters c ON c.id = r.last_opened_chapter_id
+      WHERE (SELECT COALESCE(SUM(is_done), 0) FROM chapters WHERE resource_id = r.id) > 0
+        AND (SELECT COALESCE(SUM(is_done), 0) FROM chapters WHERE resource_id = r.id) <
+            (SELECT COUNT(*) FROM chapters WHERE resource_id = r.id)
+      ORDER BY r.last_accessed_at DESC
+      LIMIT 3
+      ''',
+      readsFrom: {resources, chapters},
+    );
+    return query.watch().map(
+      (rows) => rows.map(ResourceWithChapter.fromRow).toList(),
+    );
+  }
 
   Future<int> insertResource(ResourcesCompanion entry) =>
       into(resources).insert(entry);
