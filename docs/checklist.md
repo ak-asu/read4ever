@@ -12,7 +12,7 @@
 
 ## Checklist
 
-- [ ] **1. Project setup + design system**
+- [x] **1. Project setup + design system**
   Spec ref: `spec.md > Stack`, `spec.md > Design System`
   What to build: Create (or confirm) the Flutter project structure. Add all dependencies to `pubspec.yaml`: `flutter_inappwebview`, `drift`, `sqlite3_flutter_libs`, `riverpod`, `riverpod_annotation`, `go_router`, `freezed`, `freezed_annotation`, `google_fonts`, `http`, `xml`, `shared_preferences`, `flutter_sharing_intent`, and dev dependencies `build_runner`, `drift_dev`, `riverpod_generator`. Create `lib/theme/app_colors.dart` with all light + dark color constants exactly as specified. Create `lib/theme/app_theme.dart` with ThemeData light + dark using DM Sans (via google_fonts), all typography scale values, and component overrides for Card, ElevatedButton, ProgressIndicator, BottomSheet, Drawer, and ListTile. Create a stub `lib/main.dart` (runApp + ProviderScope) and stub `lib/app.dart` (MaterialApp.router pointing at a placeholder router). Add `assets/js/` folder to pubspec flutter assets section (files can be empty placeholders for now).
   Acceptance: App compiles and runs. DM Sans font renders. Teal accent color is visible on at least one widget. No missing-asset errors.
