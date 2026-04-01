@@ -100,7 +100,8 @@ class SitemapService {
         if (seen.contains(normalized)) continue;
         seen.add(normalized);
 
-        pages.add(SitemapPage(url: normalized, title: _titleFromUrl(normalized)));
+        pages.add(
+            SitemapPage(url: normalized, title: _titleFromUrl(normalized)));
       }
 
       return pages.isEmpty ? null : pages;
@@ -250,8 +251,7 @@ class SitemapService {
   String _titleFromUrl(String url) {
     try {
       final uri = Uri.parse(url);
-      final segments =
-          uri.pathSegments.where((s) => s.isNotEmpty).toList();
+      final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
       if (segments.isEmpty) return uri.host;
       final last = segments.last;
       return last

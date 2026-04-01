@@ -132,6 +132,25 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 5: SitemapService — URL validation, discovery, XML parsing
+
+**What was built:**
+- `lib/models/sitemap_page.dart` — Freezed class with `url` and `title` fields
+- `lib/services/sitemap_service.dart` — `SitemapService` with:
+  - `isValidUrl(String url)` — rejects empty, non-HTTP/S, malformed URIs
+  - `discover(String url, {int maxDepth = 2})` — three-strategy discovery: `{base}/sitemap.xml` → `{base}/sitemap_index.xml` → scrape `<link rel="sitemap">` from page `<head>`; returns `null` if all fail or result is empty
+  - `parseSitemap(String sitemapUrl, {int currentDepth, required int maxDepth})` — dispatches to `<sitemapindex>` (recursive) or `<urlset>` (extract `<loc>`) handlers
+  - `_titleFromUrl(String url)` — derives human-readable title from last URL path segment (kebab/snake → Title Case)
+  - `_discoverFromPage(String url)` — regex scan for `<link rel="sitemap" href="...">` with both attribute orderings; resolves relative hrefs against page URL
+
+**Design decision logged:** Used non-raw string literals for HTML regex patterns — Dart raw strings (`r'...'`) cannot include single quotes at all (no escape mechanism), which would break character classes like `["']`. Non-raw strings with `\'` work correctly.
+
+**Issues:** Initial codegen failed due to raw string literal containing `\'`. Fixed by switching to non-raw string literals. Second codegen pass and `flutter build apk --debug` both clean.
+
+**Verification:** Passed — `drift.simonbinder.eu` returned 41 pages via link extraction; `example.com` returned null as expected.
+
+**Issue encountered:** The spec assumed `drift.simonbinder.eu` has a conventional sitemap — it doesn't (robots.txt exists but no `Sitemap:` directive; `/sitemap.xml` 404s). Fixed by adding two additional strategies beyond the spec: (1) robots.txt parsing as primary strategy, (2) same-origin `<a href>` link extraction as last-resort fallback. Also hit a Dart raw-string bug: `r'...'` can't contain single quotes, so regex patterns with `["']` character classes had to use non-raw string literals. URL normalization was also fixed — `Uri.replace(fragment: '', query: '')` leaves `?#` in the string; switched to `.split('?')[0].split('#')[0]`.
+
 ### Step 4: Library screen
 
 **What was built:**

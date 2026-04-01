@@ -36,7 +36,7 @@
   Acceptance: Library shows empty state with prompt and FAB on first launch. Continue Reading strip is hidden when no in-progress resources exist. FAB navigates to the import stub.
   Verify: Run `flutter run` — confirm empty state renders correctly with centered text and FAB visible. Tap FAB — confirm navigation to `/import` stub. No errors in debug console.
 
-- [ ] **5. SitemapService — URL validation, discovery, XML parsing**
+- [x] **5. SitemapService — URL validation, discovery, XML parsing**
   Spec ref: `spec.md > Import System > URL Validation`, `spec.md > Import System > Sitemap Discovery`
   What to build: Create `lib/models/sitemap_page.dart` (freezed class: `url`, `title`). Create `lib/services/sitemap_service.dart` with: `isValidUrl(String url)` — rejects empty, non-HTTP/S, malformed URIs; `discover(String url, {int maxDepth = 2})` — tries `{url}/sitemap.xml`, then `{url}/sitemap_index.xml`, then parses `<link rel="sitemap">` from the page `<head>`; returns `null` if all three strategies fail; `parseSitemap(String sitemapUrl, {int currentDepth, required int maxDepth})` — handles `<sitemapindex>` (recurse child entries up to maxDepth) and `<urlset>` (extract `<loc>` entries, derive title from path segment). Return `null` on any network error or empty result.
   Acceptance: Service discovers and parses sitemaps from real multi-page docs sites. Single-page URLs return null. Network errors return null gracefully.
