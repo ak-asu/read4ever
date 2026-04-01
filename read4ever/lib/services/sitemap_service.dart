@@ -21,7 +21,7 @@ class SitemapService {
   /// Tries three discovery strategies in order:
   ///   1. GET {baseUrl}/sitemap.xml
   ///   2. GET {baseUrl}/sitemap_index.xml
-  ///   3. GET {baseUrl} → parse <link rel="sitemap"> from <head>
+  ///   3. GET {baseUrl} → parse `<link rel="sitemap">` from `<head>`
   ///
   /// Returns null if all strategies fail or the result is empty.
   Future<List<SitemapPage>?> discover(String url, {int maxDepth = 2}) async {
@@ -58,7 +58,7 @@ class SitemapService {
     }
   }
 
-  /// Public for testing. Handles both <sitemapindex> and <urlset>.
+  /// Public for testing. Handles both `<sitemapindex>` and `<urlset>`.
   Future<List<SitemapPage>> parseSitemap(
     String sitemapUrl, {
     int currentDepth = 0,
@@ -120,7 +120,7 @@ class SitemapService {
     }).where((p) => p.url.isNotEmpty).toList();
   }
 
-  /// Fetches the page and looks for <link rel="sitemap" href="..."> in <head>.
+  /// Fetches the page and looks for `<link rel="sitemap" href="...">` in `<head>`.
   Future<String?> _discoverFromPage(String url) async {
     try {
       final response = await _client
