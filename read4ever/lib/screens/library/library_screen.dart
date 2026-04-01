@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../providers/resources_provider.dart';
+import '../../screens/import/import_screen.dart';
 import '../../theme/app_colors.dart';
 import 'widgets/resource_card.dart';
 import 'widgets/continue_reading_strip.dart';
@@ -18,7 +18,7 @@ class LibraryScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
         heroTag: 'library_fab',
-        onPressed: () => context.push('/import'),
+        onPressed: () => showImportBottomSheet(context),
         child: const Icon(Icons.add),
       ),
       body: resourcesAsync.when(
