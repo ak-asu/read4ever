@@ -57,3 +57,34 @@
 **Deepening rounds:** 0 rounds chosen — proceeded directly to document. Aakash moved efficiently; mandatory questions were sufficient given his prior clarity on the concept.
 
 **Active shaping:** Strongly active throughout. Eliminated Tracks on his own initiative. Introduced the two-mode dialog pattern (simple/advanced) unprompted. Added multi-select mode detail broadly across all list screens without being asked. Introduced the bookmark queue + prev/next navigation detail. Made clear product decisions quickly. The one moment of passivity was the cascade delete question — genuinely uncertain, accepted recommendation without pushback.
+
+## /spec
+
+**Technical decisions made:**
+- `flutter_inappwebview` over `webview_flutter` — agent recommended based on highlight feature requirements (bidirectional JS channels, ContextMenu API, evaluateJavascript with return values). Aakash deferred to recommendation.
+- Native Android ContextMenu for highlight toolbar — Aakash asked about how system apps do it (Cut/Copy/Paste bar); agent confirmed flutter_inappwebview supports this natively. Preferred over custom overlay or bottom-right FABs as the most reliable and native approach.
+- `bookmarked_at` nullable timestamp on chapters table — no separate bookmarks table needed. Aakash accepted.
+- Router extra for bookmark navigation context — cleaner than query params, no URL pollution, type-safe with freezed `ReaderContext`. Agent recommended over query param approach.
+- Design system: DM Sans + teal (#0D9488) + light-first + cool neutrals. Aakash chose each element: light-first, teal/cyan, DM Sans. Agent proposed the specific palette and shape values; Aakash accepted.
+- External JS asset files (`assets/js/`) over inline Dart strings — better separation of concerns, version-controlled independently. Agent recommended; Aakash deferred.
+- Split highlight bridge: `js_bridge.dart` (WebView interop only) + `highlight_service.dart` (domain logic). Agent recommended three-layer split for modularity. Aakash specified he wants flexible, modular, secure, scalable code following best practices.
+- Sitemap depth: 2 levels by default, configurable 1–4 in advanced import panel. Aakash's idea.
+- Chapter navigation: `pushReplacement` with zero-duration `CustomTransitionPage`. Aakash asked if seamless-feeling chapter nav was possible; agent confirmed yes and proposed the pattern.
+- Loading indicator during chapter load: thin `LinearProgressIndicator` below toolbar. Aakash's choice over accepting the white flash.
+- `freezed` for UI state models + `AsyncValue` error handling contract — every async provider handles all three states explicitly.
+
+**What Aakash was confident about vs uncertain:**
+- Confident: stack (Flutter/Drift/Riverpod/go_router), data hierarchy (Resource → Chapter), no-backend/local-first constraint, all PRD decisions
+- Uncertain about / deferred to agent: WebView package choice, JS architecture layering, file structure details, design system specifics
+- Aakash drove design direction (light-first, teal, DM Sans) but needed agent to translate to concrete values
+
+**Stack choices and rationale:**
+Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation was about filling in package-level gaps (flutter_inappwebview), design system, architectural patterns, and JS bridge design.
+
+**Deepening rounds:** 0 rounds chosen. Aakash had enough clarity from the mandatory questions and was ready to generate. The mandatory questions were productive — they surfaced the ContextMenu vs custom overlay decision, the bookmark routing approach, and the resource sort order definition.
+
+**Active shaping:**
+- Aakash drove all design direction choices (light-first, teal, DM Sans)
+- Asked a genuinely good question about whether native system selection toolbar could be used for highlights — this led to a better architecture than the original custom overlay plan
+- Specified "flexible, modular, secure, scalable" + best practices as a constraint — led to 3-layer JS bridge split and freezed/AsyncValue patterns
+- Consistently deferred on package-level and architecture decisions while actively shaping design and UX decisions
