@@ -6,7 +6,8 @@
       "Bash(/c/Users/presyze/flutter/bin/flutter analyze:*)",
       "Bash(flutter pub:*)",
       "Bash(dart analyze:*)",
-      "Bash(flutter analyze:*)"
+      "Bash(flutter analyze:*)",
+      "Bash(dart run:*)"
     ]
   },
   "enabledPlugins": {

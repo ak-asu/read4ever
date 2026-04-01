@@ -132,6 +132,25 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 6: ImportScreen — dialog, state, DB write, navigation
+
+**What was built:**
+- `lib/providers/import_provider.dart` — `ImportStatus` enum, `ImportState` freezed class (url, status, allPages, deselectedUrls, resourceName, description, maxDepth, isAdvanced, errorMessage), `ImportNotifier` (AutoDisposeNotifier) with methods: `setUrl`, `discover`, `rescan`, `_runDiscovery`, `togglePage`, `reorderPage`, `setMaxDepth`, `toggleAdvanced`, `confirm`, `reset`
+- `lib/screens/import/import_screen.dart` — `ImportScreen` stub (opens sheet via addPostFrameCallback, for step 14 intent handler), `showImportBottomSheet()` function, `ImportBottomSheet` ConsumerStatefulWidget with URL field, Scan button, chapter count summary, Advanced/Simple toggle, Cancel/Import actions
+- `lib/screens/import/widgets/sitemap_chapter_list.dart` — checkbox list; standalone locks last checkbox; URL shown as subtitle
+- `lib/screens/import/widgets/advanced_import_panel.dart` — `ReorderableListView` with drag handles + checkboxes, resource name TextField, description TextField, depth stepper (1–4) + Re-scan button
+
+**Design decisions:**
+- Selection tracked by `deselectedUrls: List<String>` (URL-based, not index-based) so reordering in advanced mode doesn't affect which pages are selected
+- `_runDiscovery` returns a `bool` (true = single-page fallback used) so context usage is clean — no context passed into the async helper; snackbar shown in callers after mount check
+- `ImportNotifier` extends `AutoDisposeNotifier` — fresh state every time the sheet opens, auto-disposed when closed
+- `ImportScreen` route class kept for step 14 (Android share intent); `showImportBottomSheet` used by Library FAB directly
+- Duplicate detection: exact URL match on chapters → reader; exact URL match on resources → resource detail; skips discovery in both cases
+
+**Issues:** Initial `Notifier` → should have been `AutoDisposeNotifier` for `.autoDispose` provider; `_runDiscovery` had context passed across async gap (lint info). Fixed by restructuring to return bool + checking mounted in callers. `flutter analyze` — no issues.
+
+**Verification:** Learner to run app, tap FAB, enter a multi-chapter docs URL, confirm chapter list appears, deselect chapters, tap Import, confirm reader opens. Then enter the same URL again — confirm it opens existing resource instead of re-importing.
+
 ### Step 5: SitemapService — URL validation, discovery, XML parsing
 
 **What was built:**
