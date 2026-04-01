@@ -132,6 +132,22 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 3: Database layer — tables, DAOs, codegen
+
+**What was built:**
+- `lib/db/tables/` — 5 table classes: `Resources`, `Chapters`, `Highlights`, `Tags`, `ResourceTags` with all columns, FK references, and `onDelete: cascade` constraints as specified
+- `lib/db/database.dart` — `AppDatabase` with `@DriftDatabase` annotation, `_openConnection()` using `NativeDatabase.createInBackground` (requires `path_provider` + `path`, added to pubspec)
+- `lib/db/daos/` — 4 DAO classes with `@DriftAccessor` annotations: `ResourcesDao`, `ChaptersDao`, `HighlightsDao`, `TagsDao`. Simple single-table queries implemented fully; complex multi-table/aggregate methods stubbed with `throw UnimplementedError()` (implemented in the step that introduces the consuming screen)
+- `lib/models/` — 5 stub result classes (`ResourceWithStatus`, `ResourceWithChapters`, `ResourceWithChapter`, `ChapterWithResource`, `HighlightWithChapterAndResource`) for DAO return type signatures; fully implemented in steps 4, 8, 9
+- `lib/providers/database_provider.dart` — `appDatabaseProvider` keepAlive singleton
+- Codegen: all 6 `.g.dart` files generated successfully; `flutter analyze` — no issues
+
+**Design decision logged:** `Resources.lastOpenedChapterId` uses `.nullable().customConstraint('REFERENCES chapters(id) ON DELETE SET NULL')` instead of `.references(Chapters, #id)` to avoid a circular Dart import between `resources.dart` and `chapters.dart`. Functionally identical at the SQLite level.
+
+**Issues:** Initial codegen pass had one fixable warning (`lastOpenedChapterId` not declared nullable). Fixed by chaining `.nullable()` before `.customConstraint()`. Second codegen pass clean.
+
+**Verification:** Pending — learner to run `flutter run` and confirm app launches without database errors in debug console.
+
 ### Step 2: Navigation shell + stub screens
 
 **What was built:**

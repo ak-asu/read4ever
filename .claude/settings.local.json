@@ -3,7 +3,10 @@
     "allow": [
       "WebSearch",
       "Bash(C:/Users/presyze/flutter/bin/flutter pub:*)",
-      "Bash(/c/Users/presyze/flutter/bin/flutter analyze:*)"
+      "Bash(/c/Users/presyze/flutter/bin/flutter analyze:*)",
+      "Bash(flutter pub:*)",
+      "Bash(dart analyze:*)",
+      "Bash(flutter analyze:*)"
     ]
   },
   "enabledPlugins": {

@@ -16,11 +16,10 @@ class HighlightsDao extends DatabaseAccessor<AppDatabase>
   Stream<List<HighlightWithChapterAndResource>> watchAll() =>
       throw UnimplementedError();
 
-  Stream<List<Highlight>> watchByChapter(int chapterId) =>
-      (select(highlights)
-            ..where((h) => h.chapterId.equals(chapterId))
-            ..orderBy([(h) => OrderingTerm.asc(h.createdAt)]))
-          .watch();
+  Stream<List<Highlight>> watchByChapter(int chapterId) => (select(highlights)
+        ..where((h) => h.chapterId.equals(chapterId))
+        ..orderBy([(h) => OrderingTerm.asc(h.createdAt)]))
+      .watch();
 
   Future<int> insertHighlight(HighlightsCompanion entry) =>
       into(highlights).insert(entry);

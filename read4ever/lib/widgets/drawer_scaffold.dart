@@ -12,10 +12,16 @@ class DrawerScaffold extends StatelessWidget {
   });
 
   static const _destinations = [
-    _DrawerDestination(label: 'Library', icon: Icons.menu_book_outlined, route: '/library'),
-    _DrawerDestination(label: 'Bookmarks', icon: Icons.bookmark_outline, route: '/bookmarks'),
-    _DrawerDestination(label: 'Highlights', icon: Icons.highlight_outlined, route: '/highlights'),
-    _DrawerDestination(label: 'Settings', icon: Icons.settings_outlined, route: '/settings'),
+    _DrawerDestination(
+        label: 'Library', icon: Icons.menu_book_outlined, route: '/library'),
+    _DrawerDestination(
+        label: 'Bookmarks', icon: Icons.bookmark_outline, route: '/bookmarks'),
+    _DrawerDestination(
+        label: 'Highlights',
+        icon: Icons.highlight_outlined,
+        route: '/highlights'),
+    _DrawerDestination(
+        label: 'Settings', icon: Icons.settings_outlined, route: '/settings'),
   ];
 
   String _titleFor(String location) {

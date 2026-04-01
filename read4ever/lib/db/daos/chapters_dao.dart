@@ -11,11 +11,10 @@ class ChaptersDao extends DatabaseAccessor<AppDatabase>
     with _$ChaptersDaoMixin {
   ChaptersDao(super.db);
 
-  Stream<List<Chapter>> watchByResource(int resourceId) =>
-      (select(chapters)
-            ..where((c) => c.resourceId.equals(resourceId))
-            ..orderBy([(c) => OrderingTerm.asc(c.position)]))
-          .watch();
+  Stream<List<Chapter>> watchByResource(int resourceId) => (select(chapters)
+        ..where((c) => c.resourceId.equals(resourceId))
+        ..orderBy([(c) => OrderingTerm.asc(c.position)]))
+      .watch();
 
   // Implemented in step 9 — chapters WHERE bookmarkedAt IS NOT NULL ORDER BY bookmarkedAt ASC
   Stream<List<ChapterWithResource>> watchBookmarked() =>
@@ -33,8 +32,8 @@ class ChaptersDao extends DatabaseAccessor<AppDatabase>
           .write(ChaptersCompanion(isDone: Value(done)));
 
   Future<void> toggleBookmark(int id) async {
-    final chapter = await (select(chapters)..where((c) => c.id.equals(id)))
-        .getSingle();
+    final chapter =
+        await (select(chapters)..where((c) => c.id.equals(id))).getSingle();
     final newBookmarkedAt =
         chapter.bookmarkedAt == null ? DateTime.now() : null;
     await (update(chapters)..where((c) => c.id.equals(id)))

@@ -10,7 +10,8 @@ class AppColors {
   static const textPrimary = Color(0xFF0F172A); // cool-tinted near-black
   static const textSecondary = Color(0xFF64748B); // metadata, captions
   static const accent = Color(0xFF0D9488); // teal-600
-  static const accentSubtle = Color(0xFFCCFBF1); // teal-100 — highlight tint, badges
+  static const accentSubtle =
+      Color(0xFFCCFBF1); // teal-100 — highlight tint, badges
   static const onAccent = Color(0xFFFFFFFF);
 
   // --- Dark mode ---

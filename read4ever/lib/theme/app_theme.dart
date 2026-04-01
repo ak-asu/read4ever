@@ -50,94 +50,94 @@ class AppTheme {
   );
 
   static ThemeData get light => ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.light,
-    colorScheme: ColorScheme.light(
-      primary: AppColors.accent,
-      onPrimary: AppColors.onAccent,
-      surface: AppColors.surface,
-      onSurface: AppColors.textPrimary,
-      outline: AppColors.border,
-    ),
-    scaffoldBackgroundColor: AppColors.background,
-    textTheme: _textTheme,
-    cardTheme: CardThemeData(
-      color: AppColors.surface,
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.accent,
-        foregroundColor: AppColors.onAccent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+        useMaterial3: true,
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.light(
+          primary: AppColors.accent,
+          onPrimary: AppColors.onAccent,
+          surface: AppColors.surface,
+          onSurface: AppColors.textPrimary,
+          outline: AppColors.border,
         ),
-      ),
-    ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: AppColors.accent,
-    ),
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-    ),
-    drawerTheme: const DrawerThemeData(
-      backgroundColor: AppColors.surface,
-      elevation: 0,
-    ),
-    listTileTheme: const ListTileThemeData(
-      contentPadding: EdgeInsets.symmetric(horizontal: 16),
-    ),
-  );
+        scaffoldBackgroundColor: AppColors.background,
+        textTheme: _textTheme,
+        cardTheme: CardThemeData(
+          color: AppColors.surface,
+          elevation: 1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            foregroundColor: AppColors.onAccent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: AppColors.accent,
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+        ),
+        drawerTheme: const DrawerThemeData(
+          backgroundColor: AppColors.surface,
+          elevation: 0,
+        ),
+        listTileTheme: const ListTileThemeData(
+          contentPadding: EdgeInsets.symmetric(horizontal: 16),
+        ),
+      );
 
   static ThemeData get dark => ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.dark,
-    colorScheme: ColorScheme.dark(
-      primary: AppColors.accent,
-      onPrimary: AppColors.onAccent,
-      surface: AppColors.surfaceDark,
-      onSurface: AppColors.textPrimaryDark,
-      outline: AppColors.borderDark,
-    ),
-    scaffoldBackgroundColor: AppColors.backgroundDark,
-    textTheme: _darkTextTheme,
-    cardTheme: CardThemeData(
-      color: AppColors.surfaceDark,
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.accent,
-        foregroundColor: AppColors.onAccent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.dark(
+          primary: AppColors.accent,
+          onPrimary: AppColors.onAccent,
+          surface: AppColors.surfaceDark,
+          onSurface: AppColors.textPrimaryDark,
+          outline: AppColors.borderDark,
         ),
-      ),
-    ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: AppColors.accent,
-    ),
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: AppColors.surfaceDark,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-    ),
-    drawerTheme: const DrawerThemeData(
-      backgroundColor: AppColors.surfaceDark,
-      elevation: 0,
-    ),
-    listTileTheme: const ListTileThemeData(
-      contentPadding: EdgeInsets.symmetric(horizontal: 16),
-    ),
-  );
+        scaffoldBackgroundColor: AppColors.backgroundDark,
+        textTheme: _darkTextTheme,
+        cardTheme: CardThemeData(
+          color: AppColors.surfaceDark,
+          elevation: 1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.accent,
+            foregroundColor: AppColors.onAccent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: AppColors.accent,
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: AppColors.surfaceDark,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+        ),
+        drawerTheme: const DrawerThemeData(
+          backgroundColor: AppColors.surfaceDark,
+          elevation: 0,
+        ),
+        listTileTheme: const ListTileThemeData(
+          contentPadding: EdgeInsets.symmetric(horizontal: 16),
+        ),
+      );
 }

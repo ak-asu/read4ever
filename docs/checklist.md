@@ -24,7 +24,7 @@
   Acceptance: App launches, drawer opens from all 4 shell destinations, each destination shows its correct title, and full-screen routes push on top of the shell without the drawer visible.
   Verify: Run `flutter run` — open drawer, tap all 4 destinations, confirm titles change correctly. Add a temporary `TextButton` in Library that calls `context.push('/resource/1')` and another that calls `context.push('/reader/1')` — confirm both push without crashing and show no drawer chrome. Then remove the temp buttons.
 
-- [ ] **3. Database layer — tables, DAOs, codegen**
+- [x] **3. Database layer — tables, DAOs, codegen**
   Spec ref: `spec.md > Data Model`, `spec.md > State Management > Provider Architecture`
   What to build: Create all 5 table classes in `lib/db/tables/`: `Resources`, `Chapters`, `Highlights`, `Tags`, `ResourceTags` — exactly as specified including all columns, FK references, and `onDelete: cascade` constraints. Create `lib/db/database.dart` with `AppDatabase` annotated with `@DriftDatabase`. Create all 4 DAOs in `lib/db/daos/` (`ResourcesDao`, `ChaptersDao`, `HighlightsDao`, `TagsDao`) with all specified query method signatures — implementations can use `TODO` stubs for complex queries; at minimum the stream signatures must be correct so codegen succeeds. Create `lib/providers/database_provider.dart` with the `appDatabaseProvider` keepAlive singleton. **Note: after agent writes these files, learner must manually run `flutter pub run build_runner build --delete-conflicting-outputs` to generate `.g.dart` files.**
   Acceptance: Codegen completes without errors. All `.g.dart` files are generated. App compiles and launches without database initialization errors.
