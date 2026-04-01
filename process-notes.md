@@ -132,6 +132,26 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 4: Library screen
+
+**What was built:**
+- `lib/models/resource_with_status.dart` — real Drift result class: `Resource resource`, `int totalCount`, `int doneCount`, computed getters `isDone` / `isInProgress` / `progress`, `factory fromRow(QueryRow row)`
+- `lib/models/resource_with_chapter.dart` — real Drift result class: `Resource resource`, `Chapter lastOpenedChapter`, `factory fromRow(QueryRow row)`
+- `ResourcesDao.watchAll()` — subquery SQL with GROUP BY + CASE sort (in-progress → not-started → done, then `lastAccessedAt DESC`); uses `customSelect` with `readsFrom: {resources, chapters}` for reactive streams
+- `ResourcesDao.watchContinueReading()` — INNER JOIN on `last_opened_chapter_id` + EXISTS subqueries filtering to in-progress resources; LIMIT 3 ORDER BY `lastAccessedAt DESC`
+- `lib/providers/resources_provider.dart` — manual `StreamProvider` (not codegen) to avoid requiring a build_runner re-run; `resourcesProvider` + `continueReadingProvider`
+- `lib/screens/library/widgets/resource_card.dart` — Card with InkWell tap → `/resource/$id`, title, description (2 lines ellipsis), chapter count + LinearProgressIndicator, Resume button shown only when `lastOpenedChapterId` is non-null; done treatment: title at secondary opacity
+- `lib/screens/library/widgets/continue_reading_strip.dart` — horizontal ListView of up to 3 entries, hidden when empty, each card 160px wide, taps to `/reader/$lastOpenedChapterId`
+- `lib/screens/library/library_screen.dart` — ConsumerWidget with nested `Scaffold(backgroundColor: Colors.transparent)` for FAB placement; handles AsyncValue loading/error/data; shows `ContinueReadingStrip` + SliverList of ResourceCards; empty state with icon + two text lines; FAB → `/import`
+
+**Design decision logged:** Used nested Scaffold (`Colors.transparent`) for the FAB rather than modifying `DrawerScaffold` — self-contained, no changes to the shell widget, FAB positions correctly relative to screen bottom.
+
+**Design decision logged:** Used manual `StreamProvider` instead of Riverpod codegen for resource providers — avoids requiring build_runner re-run at this step. Behavior is identical.
+
+**Issues:** None. `flutter analyze` — no issues.
+
+**Verification:** Passed — empty state rendered correctly with FAB visible; FAB navigated to `/import` stub. Build_runner ran cleanly (two pre-existing warnings, no errors).
+
 ### Step 3: Database layer — tables, DAOs, codegen
 
 **What was built:**

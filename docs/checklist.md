@@ -30,7 +30,7 @@
   Acceptance: Codegen completes without errors. All `.g.dart` files are generated. App compiles and launches without database initialization errors.
   Verify: Run `flutter pub run build_runner build --delete-conflicting-outputs` — confirm no errors in output. Then run `flutter run` — confirm app launches, no red screen, no database errors in debug console.
 
-- [ ] **4. Library screen**
+- [x] **4. Library screen**
   Spec ref: `spec.md > Library Screen`, `spec.md > State Management > Resource Providers`
   What to build: Implement `ResourcesDao.watchAll()` with the full sort SQL (in-progress → not-started → done, then by `lastAccessedAt DESC`). Implement `ResourcesDao.watchContinueReading()` (last 3 in-progress by `lastAccessedAt DESC`). Create `lib/models/resource_with_status.dart` (Drift result class with computed `totalCount`, `doneCount`). Create `lib/providers/resources_provider.dart` with `resourcesProvider` and `continueReadingProvider`. Create `lib/screens/library/widgets/resource_card.dart` — title (titleMedium), description (bodyMedium, max 2 lines, ellipsis), chapter count label, `LinearProgressIndicator` (teal), Resume button; done treatment: muted text color + full progress bar. Create `lib/screens/library/widgets/continue_reading_strip.dart` — horizontal `ListView` of up to 3 entries, hidden when empty. Replace the Library stub screen with the real `LibraryScreen` driven by `ref.watch(resourcesProvider)`. Add empty state (centered icon + two text lines) shown when resources list is empty. Add FAB (bottom-right) → `context.push('/import')`.
   Acceptance: Library shows empty state with prompt and FAB on first launch. Continue Reading strip is hidden when no in-progress resources exist. FAB navigates to the import stub.

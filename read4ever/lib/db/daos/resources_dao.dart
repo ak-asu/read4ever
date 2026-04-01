@@ -37,8 +37,8 @@ class ResourcesDao extends DatabaseAccessor<AppDatabase>
       readsFrom: {resources, chapters},
     );
     return query.watch().map(
-      (rows) => rows.map(ResourceWithStatus.fromRow).toList(),
-    );
+          (rows) => rows.map(ResourceWithStatus.fromRow).toList(),
+        );
   }
 
   // Implemented in step 11 (Resource Detail screen)
@@ -70,8 +70,8 @@ class ResourcesDao extends DatabaseAccessor<AppDatabase>
       readsFrom: {resources, chapters},
     );
     return query.watch().map(
-      (rows) => rows.map(ResourceWithChapter.fromRow).toList(),
-    );
+          (rows) => rows.map(ResourceWithChapter.fromRow).toList(),
+        );
   }
 
   Future<int> insertResource(ResourcesCompanion entry) =>

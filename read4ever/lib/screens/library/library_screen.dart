@@ -38,8 +38,7 @@ class LibraryScreen extends ConsumerWidget {
               ),
               SliverList(
                 delegate: SliverChildBuilderDelegate(
-                  (context, index) =>
-                      ResourceCard(item: resources[index]),
+                  (context, index) => ResourceCard(item: resources[index]),
                   childCount: resources.length,
                 ),
               ),

@@ -7,6 +7,7 @@ final resourcesProvider = StreamProvider<List<ResourceWithStatus>>((ref) {
   return ref.watch(appDatabaseProvider).resourcesDao.watchAll();
 });
 
-final continueReadingProvider = StreamProvider<List<ResourceWithChapter>>((ref) {
+final continueReadingProvider =
+    StreamProvider<List<ResourceWithChapter>>((ref) {
   return ref.watch(appDatabaseProvider).resourcesDao.watchContinueReading();
 });

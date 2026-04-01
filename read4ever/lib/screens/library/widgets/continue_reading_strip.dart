@@ -57,8 +57,7 @@ class _ContinueReadingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(8),
-      onTap: () =>
-          context.push('/reader/${item.resource.lastOpenedChapterId}'),
+      onTap: () => context.push('/reader/${item.resource.lastOpenedChapterId}'),
       child: Container(
         width: 160,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
