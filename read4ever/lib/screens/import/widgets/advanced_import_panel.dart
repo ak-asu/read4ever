@@ -50,6 +50,58 @@ class _AdvancedImportPanelState extends ConsumerState<AdvancedImportPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Resource name field
+        TextField(
+          controller: _nameController,
+          decoration: const InputDecoration(
+            labelText: 'Resource name',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          onChanged: notifier.setResourceName,
+          textInputAction: TextInputAction.next,
+        ),
+
+        const SizedBox(height: 12),
+
+        // Description field
+        TextField(
+          controller: _descController,
+          decoration: const InputDecoration(
+            labelText: 'Description (optional)',
+            border: OutlineInputBorder(),
+            isDense: true,
+          ),
+          maxLines: 2,
+          onChanged: notifier.setDescription,
+          textInputAction: TextInputAction.done,
+        ),
+
+        const SizedBox(height: 12),
+
+        // Depth stepper + Re-scan
+        Row(
+          children: [
+            Text('Scan depth:', style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(width: 12),
+            _DepthStepper(
+              value: state.maxDepth,
+              onDecrement: () => notifier.setMaxDepth(state.maxDepth - 1),
+              onIncrement: () => notifier.setMaxDepth(state.maxDepth + 1),
+            ),
+            const SizedBox(width: 12),
+            TextButton.icon(
+              onPressed: state.status == ImportStatus.loading
+                  ? null
+                  : () => notifier.rescan(context),
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('Re-scan'),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
         // Reorderable chapter list
         Text(
           'Chapters',
@@ -90,58 +142,6 @@ class _AdvancedImportPanelState extends ConsumerState<AdvancedImportPanel> {
               ),
             );
           },
-        ),
-
-        const SizedBox(height: 16),
-
-        // Resource name field
-        TextField(
-          controller: _nameController,
-          decoration: const InputDecoration(
-            labelText: 'Resource name',
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
-          onChanged: notifier.setResourceName,
-          textInputAction: TextInputAction.next,
-        ),
-
-        const SizedBox(height: 12),
-
-        // Description field
-        TextField(
-          controller: _descController,
-          decoration: const InputDecoration(
-            labelText: 'Description (optional)',
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
-          maxLines: 2,
-          onChanged: notifier.setDescription,
-          textInputAction: TextInputAction.done,
-        ),
-
-        const SizedBox(height: 16),
-
-        // Depth stepper + Re-scan
-        Row(
-          children: [
-            Text('Scan depth:', style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(width: 12),
-            _DepthStepper(
-              value: state.maxDepth,
-              onDecrement: () => notifier.setMaxDepth(state.maxDepth - 1),
-              onIncrement: () => notifier.setMaxDepth(state.maxDepth + 1),
-            ),
-            const SizedBox(width: 12),
-            TextButton.icon(
-              onPressed: state.status == ImportStatus.loading
-                  ? null
-                  : () => notifier.rescan(context),
-              icon: const Icon(Icons.refresh, size: 16),
-              label: const Text('Re-scan'),
-            ),
-          ],
         ),
       ],
     );

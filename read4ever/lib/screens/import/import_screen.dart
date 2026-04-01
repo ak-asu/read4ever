@@ -149,33 +149,45 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
             if (isReady) ...[
               const SizedBox(height: 16),
 
-              // Chapter count summary
-              Text(
-                '${state.selectedPages.length} of ${state.allPages.length} chapter${state.allPages.length == 1 ? '' : 's'} selected',
-                style: Theme.of(context)
-                    .textTheme
-                    .labelMedium!
-                    .copyWith(color: secondaryColor),
+              // Chapter count summary + Advanced/Simple toggle on the same row
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${state.selectedPages.length} of ${state.allPages.length} '
+                      'chapter${state.allPages.length == 1 ? '' : 's'} selected',
+                      style: Theme.of(context)
+                          .textTheme
+                          .labelMedium!
+                          .copyWith(color: secondaryColor),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: notifier.toggleAdvanced,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      visualDensity: VisualDensity.compact,
+                      textStyle: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    icon: Icon(
+                      state.isAdvanced
+                          ? Icons.expand_less
+                          : Icons.expand_more,
+                      size: 16,
+                    ),
+                    label: Text(state.isAdvanced ? 'Simple' : 'Advanced'),
+                    iconAlignment: IconAlignment.end,
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
 
               // Simple mode: checkbox list
               if (!state.isAdvanced) const SitemapChapterList(),
 
-              // Advanced mode: reorderable list + name/description/depth
+              // Advanced mode: form fields (name/desc/depth) then reorderable list
               if (state.isAdvanced) const AdvancedImportPanel(),
-
-              const SizedBox(height: 12),
-
-              // Advanced / Simple toggle
-              Center(
-                child: TextButton(
-                  onPressed: notifier.toggleAdvanced,
-                  child: Text(
-                    state.isAdvanced ? 'Simple ▲' : 'Advanced ▼',
-                  ),
-                ),
-              ),
             ],
 
             const SizedBox(height: 16),
