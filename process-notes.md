@@ -29,3 +29,31 @@
 **Deepening rounds:** 1 round chosen. Surfaced: (1) the core UX moment (organized docs reading with progress vs. browser chaos), (2) Duolingo doesn't translate, (3) design direction is open — not locked to current plan choices, (4) NotebookLM as the design quality target, (5) WebView constraint clarification. The extra round materially improved the design direction in the scope doc.
 
 **Active shaping:** Aakash drove the direction throughout. He volunteered research and a full plan without prompting. He pushed back on Duolingo himself. He flagged the WebView constraint unprompted. The scope conversation confirmed and sharpened his existing thinking rather than building it from scratch.
+
+## /prd
+
+**Key changes vs scope doc:**
+- Tracks/modules eliminated entirely; replaced by free-text tags on resources (metadata only, no filter UI in MVP). Big simplification to the data model.
+- Import flow gained significant precision: two-mode dialog (simple = checkboxes only, advanced = reorder/rename/description); same dialog for both docs and standalone imports; duplicate detection on both resource and chapter level; FAB-initiated import from within app
+- Bookmarks clarified as a chapter reading queue with prev/next sequential navigation when reading from the Bookmarks screen — more distinct from the chapter list than it seemed
+- Drawer reduced from 5 to 4 items (Library, Bookmarks, Highlights, Settings)
+- Delete app data added to Settings
+
+**"What if" questions that landed:**
+- First-run empty state (hadn't been considered explicitly — led to: empty state prompt + FAB)
+- Cascade delete on resource deletion (unsure at first — accepted recommendation: cascade delete with informative confirmation dialog showing highlight/bookmark count)
+- Scroll position persistence (accepted pragmatic answer: memory only while app is alive, cleared on full close — scroll-to-disk deferred to "more time" list)
+- Offline/dead URL in reader (not considered — added: error state with retry)
+
+**Pushback and strong opinions:**
+- Pushed back on "first incomplete chapter" for Resume → insisted on "last chapter opened." Clear preference grounded in reading-flow intuition.
+- Eliminated Tracks without hesitation when tags-as-metadata alternative was presented — no attachment to the more complex data model.
+- Asked for external validation ("what do existing solutions do?") on the Resume behavior question before deciding — comfortable deferring to data, then overriding it with his own preference.
+
+**Scope guard moments:**
+- Tag filtering: explicitly deferred ("not needed at the moment" — described future vision only). Kept tags as metadata. No pushback on the deferral.
+- Search: confirmed still cut — "search bar" mention was loose language describing the future layout, not a request to add search.
+
+**Deepening rounds:** 0 rounds chosen — proceeded directly to document. Aakash moved efficiently; mandatory questions were sufficient given his prior clarity on the concept.
+
+**Active shaping:** Strongly active throughout. Eliminated Tracks on his own initiative. Introduced the two-mode dialog pattern (simple/advanced) unprompted. Added multi-select mode detail broadly across all list screens without being asked. Introduced the bookmark queue + prev/next navigation detail. Made clear product decisions quickly. The one moment of passivity was the cascade delete question — genuinely uncertain, accepted recommendation without pushback.
