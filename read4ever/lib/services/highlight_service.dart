@@ -37,6 +37,7 @@ class HighlightService {
       sel.xpathEnd,
       sel.startOffset,
       sel.endOffset,
+      hasNote: note != null && note.isNotEmpty,
     );
   }
 
@@ -46,5 +47,18 @@ class HighlightService {
     final highlights = await highlightsDao.getByChapter(chapterId);
     if (highlights.isEmpty) return;
     await jsBridge.restoreHighlights(highlights);
+  }
+
+  /// Saves a new or updated note for [id] and immediately refreshes the mark's
+  /// dashed-underline style to reflect the new note presence.
+  Future<void> updateNote(int id, String? note) async {
+    await highlightsDao.updateNote(id, note);
+    await jsBridge.updateHighlightNote(id, hasNote: note != null && note.isNotEmpty);
+  }
+
+  /// Deletes the highlight from the database and removes its mark from the DOM.
+  Future<void> removeHighlight(int id) async {
+    await highlightsDao.deleteHighlight(id);
+    await jsBridge.removeHighlight(id);
   }
 }

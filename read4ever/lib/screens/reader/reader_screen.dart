@@ -14,6 +14,7 @@ import '../../services/sitemap_service.dart';
 import '../../theme/app_colors.dart';
 import 'reader_toolbar.dart';
 import 'widgets/reader_error_state.dart';
+import 'widgets/reader_highlight_sheet.dart';
 import 'widgets/temp_chapter_banner.dart';
 
 class ReaderScreen extends ConsumerStatefulWidget {
@@ -108,58 +109,46 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _showNoteBottomSheet(int chapterId, sel) {
-    final controller = TextEditingController();
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          left: 16,
-          right: 16,
-          top: 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: controller,
-              autofocus: true,
-              maxLines: null,
-              decoration: const InputDecoration(
-                hintText: 'Add a note...',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: () async {
-                    final note = controller.text.trim();
-                    Navigator.of(ctx).pop();
-                    await _highlightService?.createHighlight(
-                      chapterId,
-                      sel,
-                      note: note.isEmpty ? null : note,
-                    );
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+      // _NoteSheet owns and disposes its TextEditingController via widget
+      // lifecycle — avoids the use-after-dispose race that occurs when the
+      // controller is created inline and disposed in whenComplete() while the
+      // sheet's closing animation is still running.
+      builder: (ctx) => _NoteSheet(
+        onSave: (note) async {
+          await _highlightService?.createHighlight(
+            chapterId,
+            sel,
+            note: note,
+          );
+        },
       ),
-    ).whenComplete(() => controller.dispose());
+    );
+  }
+
+  // ── Mark tap handler ────────────────────────────────────────────────────
+
+  Future<void> _onMarkTapped(int id) async {
+    final chapterId = _effectiveChapterId;
+    final service = _highlightService;
+    if (chapterId == null || service == null || !mounted) return;
+    final highlights = await ref
+        .read(appDatabaseProvider)
+        .highlightsDao
+        .getByChapter(chapterId);
+    final idx = highlights.indexWhere((h) => h.id == id);
+    if (idx < 0 || !mounted) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => ReaderHighlightSheet(
+        highlights: highlights,
+        initialIndex: idx,
+        highlightService: service,
+      ),
+    );
   }
 
   // ── Navigation intercept ─────────────────────────────────────────────────
@@ -532,6 +521,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                             ref.read(appDatabaseProvider).highlightsDao,
                         jsBridge: _jsBridge!,
                       );
+                      controller.addJavaScriptHandler(
+                        handlerName: 'onHighlightTapped',
+                        callback: (args) {
+                          if (args.isEmpty) return;
+                          final id = (args[0] as num).toInt();
+                          _onMarkTapped(id);
+                        },
+                      );
                     },
                     shouldOverrideUrlLoading: (controller, action) async =>
                         await _handleNavigation(action),
@@ -568,6 +565,77 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet for adding a note to a new highlight.
+///
+/// Owns its [TextEditingController] so Flutter disposes it via the widget
+/// lifecycle — only after the sheet's closing animation completes. This avoids
+/// the use-after-dispose crash that occurs when disposing in whenComplete().
+class _NoteSheet extends StatefulWidget {
+  final Future<void> Function(String? note) onSave;
+
+  const _NoteSheet({required this.onSave});
+
+  @override
+  State<_NoteSheet> createState() => _NoteSheetState();
+}
+
+class _NoteSheetState extends State<_NoteSheet> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 16,
+        right: 16,
+        top: 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLines: null,
+            decoration: const InputDecoration(
+              hintText: 'Add a note...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () async {
+                  final note = _controller.text.trim();
+                  Navigator.of(context).pop();
+                  await widget.onSave(note.isEmpty ? null : note);
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }

@@ -1,10 +1,10 @@
 // Exposes:
 //   window.__learnstack_restoreHighlights(highlightsJson) — bulk restore on page load
-//   window.__learnstack_applyHighlight(id, xpathStart, xpathEnd, startOffset, endOffset) — single new highlight
+//   window.__learnstack_applyHighlight(id, xpathStart, xpathEnd, startOffset, endOffset, hasNote)
 //   window.__learnstack_scrollToHighlight(id) — scroll a restored mark into view
+//   window.__learnstack_removeHighlight(id) — remove a mark from the DOM
 
 (function () {
-  // Resolves an XPath expression to the first matching DOM node.
   function resolveXPath(xpath) {
     var result = document.evaluate(
       xpath,
@@ -16,17 +16,34 @@
     return result.singleNodeValue;
   }
 
-  // Wraps the given Range in a <mark> element.
-  // Falls back to extractContents + appendChild for cross-element selections
-  // (surroundContents throws InvalidStateError if the range spans element boundaries).
-  function wrapRangeInMark(range, id) {
+  // Marks with a note get a dashed underline to distinguish them visually.
+  function markStyle(hasNote) {
+    var base =
+      'background:rgba(13,148,136,0.35);border-radius:2px;cursor:pointer;';
+    return hasNote
+      ? base + 'border-bottom:2px dashed rgba(13,148,136,0.85);'
+      : base;
+  }
+
+  function wrapRangeInMark(range, id, hasNote) {
     var mark = document.createElement('mark');
     mark.className = 'ls-highlight';
     mark.setAttribute('data-id', String(id));
-    mark.style.cssText = 'background:#CCFBF1;border-radius:2px;';
+    mark.style.cssText = markStyle(hasNote);
+
+    // Notify Flutter when the mark is tapped.
+    mark.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (window.flutter_inappwebview) {
+        window.flutter_inappwebview.callHandler('onHighlightTapped', id);
+      }
+    });
+
     try {
       range.surroundContents(mark);
     } catch (e) {
+      // surroundContents throws when the range spans element boundaries.
+      // extractContents + appendChild handles cross-element selections.
       var fragment = range.extractContents();
       mark.appendChild(fragment);
       range.insertNode(mark);
@@ -41,6 +58,14 @@
       console.warn('[LearnStack] Failed to parse highlights JSON:', e);
       return;
     }
+
+    // --- Phase 1: resolve ALL XPaths and create Ranges BEFORE any DOM changes.
+    //
+    // If we inserted marks sequentially, each <mark> insertion changes sibling
+    // indices and splits text nodes — invalidating the XPaths of every
+    // subsequent highlight in the same region.  Pre-resolving everything first
+    // captures stable node references before any mutation.
+    var resolved = [];
     highlights.forEach(function (h) {
       try {
         var startNode = resolveXPath(h.xpathStart);
@@ -52,9 +77,35 @@
         var range = document.createRange();
         range.setStart(startNode, h.startOffset);
         range.setEnd(endNode, h.endOffset);
-        wrapRangeInMark(range, h.id);
+        resolved.push({ range: range, id: h.id, hasNote: !!h.hasNote });
       } catch (e) {
-        console.warn('[LearnStack] Failed to restore highlight', h.id, ':', e);
+        console.warn(
+          '[LearnStack] Failed to create range for highlight',
+          h.id,
+          ':',
+          e
+        );
+      }
+    });
+
+    // --- Phase 2: sort in REVERSE document order (last occurrence first).
+    //
+    // Wrapping a later node doesn't change the structure of earlier nodes.
+    // Working back-to-front keeps every pending Range's boundary points valid.
+    resolved.sort(function (a, b) {
+      try {
+        return b.range.compareBoundaryPoints(Range.START_TO_START, a.range);
+      } catch (_) {
+        return 0;
+      }
+    });
+
+    // --- Phase 3: apply marks.
+    resolved.forEach(function (item) {
+      try {
+        wrapRangeInMark(item.range, item.id, item.hasNote);
+      } catch (e) {
+        console.warn('[LearnStack] Failed to restore highlight', item.id, ':', e);
       }
     });
   };
@@ -64,7 +115,8 @@
     xpathStart,
     xpathEnd,
     startOffset,
-    endOffset
+    endOffset,
+    hasNote
   ) {
     try {
       var startNode = resolveXPath(xpathStart);
@@ -76,7 +128,7 @@
       var range = document.createRange();
       range.setStart(startNode, startOffset);
       range.setEnd(endNode, endOffset);
-      wrapRangeInMark(range, id);
+      wrapRangeInMark(range, id, !!hasNote);
     } catch (e) {
       console.warn('[LearnStack] Failed to apply highlight', id, ':', e);
     }
@@ -87,5 +139,27 @@
     if (mark) {
       mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
+  };
+
+  // Updates only the visual style of an existing mark — used after a note is
+  // added or removed so the dashed underline reflects the current state without
+  // requiring a full page reload.
+  window.__learnstack_updateHighlightNote = function (id, hasNote) {
+    var mark = document.querySelector('.ls-highlight[data-id="' + id + '"]');
+    if (mark) mark.style.cssText = markStyle(!!hasNote);
+  };
+
+  // Removes a mark from the DOM and merges the surrounding text nodes back.
+  // Called immediately after the highlight is deleted from the database so the
+  // page reflects the deletion without a full reload.
+  window.__learnstack_removeHighlight = function (id) {
+    var mark = document.querySelector('.ls-highlight[data-id="' + id + '"]');
+    if (!mark) return;
+    var parent = mark.parentNode;
+    while (mark.firstChild) {
+      parent.insertBefore(mark.firstChild, mark);
+    }
+    parent.removeChild(mark);
+    parent.normalize();
   };
 })();

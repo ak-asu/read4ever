@@ -42,24 +42,29 @@ class JsBridge {
 
   /// Calls window.__learnstack_applyHighlight() to render a single new highlight
   /// immediately after it has been saved to the database.
+  ///
+  /// [hasNote] — if true, the mark gets a dashed underline to signal a note exists.
   Future<void> applyHighlight(
     int id,
     String xpathStart,
     String xpathEnd,
     int startOffset,
-    int endOffset,
-  ) async {
-    // jsonEncode produces properly escaped JS string literals (with surrounding quotes).
+    int endOffset, {
+    required bool hasNote,
+  }) async {
     final xsJs = jsonEncode(xpathStart);
     final xeJs = jsonEncode(xpathEnd);
+    final hasNoteJs = hasNote ? 'true' : 'false';
     await controller.evaluateJavascript(
       source:
-          'window.__learnstack_applyHighlight($id, $xsJs, $xeJs, $startOffset, $endOffset)',
+          'window.__learnstack_applyHighlight($id, $xsJs, $xeJs, $startOffset, $endOffset, $hasNoteJs)',
     );
   }
 
   /// Calls window.__learnstack_restoreHighlights() to re-render all saved
   /// highlights after a page load.
+  ///
+  /// Each highlight entry includes [hasNote] so the JS can apply the correct style.
   Future<void> restoreHighlights(List<Highlight> highlights) async {
     final list = highlights
         .map((h) => {
@@ -68,9 +73,9 @@ class JsBridge {
               'xpathEnd': h.xpathEnd,
               'startOffset': h.startOffset,
               'endOffset': h.endOffset,
+              'hasNote': h.note != null && h.note!.isNotEmpty,
             })
         .toList();
-    // Double-encode: first to JSON array string, then to a JS string literal.
     final jsArg = jsonEncode(jsonEncode(list));
     await controller.evaluateJavascript(
       source: 'window.__learnstack_restoreHighlights($jsArg)',
@@ -81,6 +86,22 @@ class JsBridge {
   Future<void> scrollToHighlight(int id) async {
     await controller.evaluateJavascript(
       source: 'window.__learnstack_scrollToHighlight($id)',
+    );
+  }
+
+  /// Updates the visual style of a mark after its note has been added/removed.
+  /// Applies or removes the dashed underline without a full page reload.
+  Future<void> updateHighlightNote(int id, {required bool hasNote}) async {
+    final hasNoteJs = hasNote ? 'true' : 'false';
+    await controller.evaluateJavascript(
+      source: 'window.__learnstack_updateHighlightNote($id, $hasNoteJs)',
+    );
+  }
+
+  /// Removes a mark from the DOM after its highlight has been deleted from the DB.
+  Future<void> removeHighlight(int id) async {
+    await controller.evaluateJavascript(
+      source: 'window.__learnstack_removeHighlight($id)',
     );
   }
 }
