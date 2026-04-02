@@ -83,7 +83,11 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
   ///   2. Duplicate detection (chapter URL match → reader; resource URL match → resource detail)
   ///   3. Sitemap discovery
   ///   4. Single-page fallback on null result
-  Future<void> discover(BuildContext context) async {
+  ///
+  /// [excludeUrls] — chapter URLs already in an existing resource; filtered out
+  /// from the discovered pages so the user only sees new chapters.
+  Future<void> discover(BuildContext context,
+      {List<String> excludeUrls = const []}) async {
     final url = state.url.trim();
 
     if (!SitemapService().isValidUrl(url)) {
@@ -119,7 +123,7 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
 
     // --- Sitemap discovery ---
     // _runDiscovery returns true when the single-page fallback was used.
-    final isFallback = await _runDiscovery(url);
+    final isFallback = await _runDiscovery(url, excludeUrls: excludeUrls);
     if (isFallback && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -148,9 +152,14 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
   }
 
   /// Runs sitemap discovery and updates state. Returns true if single-page fallback was used.
-  Future<bool> _runDiscovery(String url) async {
-    final pages =
+  /// [excludeUrls] are chapter URLs already present in a resource — filtered from results.
+  Future<bool> _runDiscovery(String url,
+      {List<String> excludeUrls = const []}) async {
+    final rawPages =
         await SitemapService().discover(url, maxDepth: state.maxDepth);
+    final pages = excludeUrls.isEmpty
+        ? rawPages
+        : rawPages?.where((p) => !excludeUrls.contains(p.url)).toList();
 
     if (pages == null || pages.isEmpty) {
       final title = _titleFromUrl(url);

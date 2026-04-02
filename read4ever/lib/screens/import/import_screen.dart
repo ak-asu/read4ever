@@ -33,7 +33,11 @@ class _ImportScreenState extends State<ImportScreen> {
 }
 
 /// Call this from any widget to open the import bottom sheet.
-Future<void> showImportBottomSheet(BuildContext context) {
+Future<void> showImportBottomSheet(
+  BuildContext context, {
+  String? initialUrl,
+  List<String> excludeUrls = const [],
+}) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -41,12 +45,25 @@ Future<void> showImportBottomSheet(BuildContext context) {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
-    builder: (_) => const ImportBottomSheet(),
+    builder: (_) => ImportBottomSheet(
+      initialUrl: initialUrl,
+      excludeUrls: excludeUrls,
+    ),
   );
 }
 
 class ImportBottomSheet extends ConsumerStatefulWidget {
-  const ImportBottomSheet({super.key});
+  /// Pre-fill the URL field — used by "Import more chapters" in Resource Detail.
+  final String? initialUrl;
+
+  /// Chapter URLs already in an existing resource; excluded from discovery results.
+  final List<String> excludeUrls;
+
+  const ImportBottomSheet({
+    super.key,
+    this.initialUrl,
+    this.excludeUrls = const [],
+  });
 
   @override
   ConsumerState<ImportBottomSheet> createState() => _ImportBottomSheetState();
@@ -59,8 +76,15 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
   @override
   void initState() {
     super.initState();
-    _urlController =
-        TextEditingController(text: ref.read(importNotifierProvider).url);
+    final initialUrl =
+        widget.initialUrl ?? ref.read(importNotifierProvider).url;
+    _urlController = TextEditingController(text: initialUrl);
+    if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
+      // Sync pre-filled URL into provider state so _discover() picks it up.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(importNotifierProvider.notifier).setUrl(widget.initialUrl!);
+      });
+    }
   }
 
   @override
@@ -217,6 +241,6 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
     final notifier = ref.read(importNotifierProvider.notifier);
     // Sync URL controller → state before discovery
     notifier.setUrl(_urlController.text);
-    notifier.discover(context);
+    notifier.discover(context, excludeUrls: widget.excludeUrls);
   }
 }

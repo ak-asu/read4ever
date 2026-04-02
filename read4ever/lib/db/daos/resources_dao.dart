@@ -3,7 +3,6 @@ import '../database.dart';
 import '../tables/resources.dart';
 import '../tables/chapters.dart';
 import '../../models/resource_with_status.dart';
-import '../../models/resource_with_chapters.dart';
 import '../../models/resource_with_chapter.dart';
 
 part 'resources_dao.g.dart';
@@ -41,8 +40,8 @@ class ResourcesDao extends DatabaseAccessor<AppDatabase>
         );
   }
 
-  // Implemented in step 11 (Resource Detail screen)
-  Stream<ResourceWithChapters> watchById(int id) => throw UnimplementedError();
+  Stream<Resource?> watchById(int id) =>
+      (select(resources)..where((r) => r.id.equals(id))).watchSingleOrNull();
 
   // Last 3 in-progress resources (at least 1 done, not all done) by lastAccessedAt DESC
   Stream<List<ResourceWithChapter>> watchContinueReading() {

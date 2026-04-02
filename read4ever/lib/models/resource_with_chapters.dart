@@ -1,6 +1,13 @@
-// Stub — fully implemented in step 4 (Library screen / ResourceDetail).
-// ResourcesDao.watchById() returns a stream of this; the real implementation
-// includes the resource row + its ordered chapter list.
+import '../db/database.dart';
+
+/// Holds a resource and its ordered chapters.
+/// Used as the data shape for the Resource Detail screen.
 class ResourceWithChapters {
-  const ResourceWithChapters();
+  final Resource resource;
+  final List<Chapter> chapters;
+
+  const ResourceWithChapters({
+    required this.resource,
+    required this.chapters,
+  });
 }
