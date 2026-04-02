@@ -6,8 +6,8 @@ import 'database_provider.dart';
 
 /// All highlights across all resources, newest first.
 /// Consumed by the Highlights screen (step 10).
-final highlightsProvider = StreamProvider.autoDispose<
-    List<HighlightWithChapterAndResource>>((ref) {
+final highlightsProvider =
+    StreamProvider.autoDispose<List<HighlightWithChapterAndResource>>((ref) {
   final db = ref.watch(appDatabaseProvider);
   return db.highlightsDao.watchAll();
 });
@@ -34,8 +34,7 @@ class HighlightFilterNotifier extends AutoDisposeNotifier<HighlightFilter> {
   @override
   HighlightFilter build() => const HighlightFilter();
 
-  void setResource(int? id) =>
-      state = HighlightFilter(resourceId: id);
+  void setResource(int? id) => state = HighlightFilter(resourceId: id);
 
   void setChapter(int? id) =>
       state = HighlightFilter(resourceId: state.resourceId, chapterId: id);

@@ -132,6 +132,50 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 9: Bookmarks screen — list, prev/next reader FABs
+
+**What was built:**
+- `lib/models/chapter_with_resource.dart` — fully implemented (was a stub); Drift result class with `Chapter chapter` and `Resource resource` fields; `fromRow` factory reads aliased columns (`c_*`, `r_*`) from a JOIN query
+- `lib/db/daos/chapters_dao.dart` — implemented `watchBookmarked()`: `customSelect` SQL that JOINs chapters to resources, filters `WHERE bookmarked_at IS NOT NULL`, ORDER BY `bookmarked_at ASC`; `readsFrom: {chapters, resources}` for reactive stream. Also added `getBookmarked()` (non-streaming Future variant) used by reader FABs to recompute adjacents on navigation
+- `lib/providers/bookmarks_provider.dart` — `bookmarksProvider` (`StreamProvider.autoDispose` over `chaptersDao.watchBookmarked()`)
+- `lib/screens/bookmarks/widgets/bookmark_list_item.dart` — `BookmarkListItem` ConsumerWidget: chapter title (bodyMedium), resource name (labelSmall, textSecondary); taps push reader with `ReaderContext(source: bookmarks, adjacentChapterIds: [prevId, nextId])`
+- `lib/screens/bookmarks/bookmarks_screen.dart` — replaced stub; `ConsumerWidget` driven by `bookmarksProvider`; empty state (bookmark icon + two text lines); `ListView.builder` of `BookmarkListItem` widgets
+- `lib/screens/reader/reader_screen.dart` — added `_hasPrevBookmark` / `_hasNextBookmark` computed properties; `_navigateViaBookmarkFab(targetId)` re-queries `getBookmarked()` to compute the target chapter's adjacents (so FABs keep working through the chain, not just one hop); `_buildBookmarkFabs()` returns a `Column` of up to two `FloatingActionButton.small` widgets (Prev = arrow_upward, Next = arrow_downward), only when source is bookmarks; added `floatingActionButton: _buildBookmarkFabs()` to Scaffold
+
+**Design decisions:**
+- **Fixed 2-element adjacentChapterIds encoding**: `[prevId_or_0, nextId_or_0]` — 0 is a sentinel meaning "no chapter in this direction." Drift auto-increment starts at 1, so 0 is never a valid chapter ID. Index 0 is always prev, index 1 is always next. This avoids the ambiguity in the spec's `.whereType<int>()` approach which would make index 0 mean different things depending on position in the list.
+- **Re-query on FAB navigation**: When a user taps Prev/Next FAB, `getBookmarked()` fetches the full sorted bookmark list to compute the target chapter's own adjacents. This lets Prev/Next chaining work across multiple hops without needing to carry the full list in state. Cost is one DB query per FAB tap — negligible for local SQLite.
+- **`FloatingActionButton.small`**: Keeps FABs compact; stacked in a Column so they don't obscure the WebView content more than necessary.
+- **`ChapterWithResource.fromRow` pattern**: Mirrors `HighlightWithChapterAndResource` — aliased SQL columns with `c_/r_` prefixes to avoid collision on the multi-table JOIN.
+
+**Issues:** One linter warning — `ids.length > 0` instead of `ids.isNotEmpty`. Fixed immediately. `flutter analyze` — no issues.
+
+**Verification:** Learner to: bookmark 3 chapters → open Bookmarks screen → confirm all 3 appear in correct order → tap middle → confirm both Prev and Next FABs appear → tap Next → confirm navigates to third → tap Prev → confirm returns to middle → go back to Bookmarks → un-bookmark first chapter from reader toolbar → confirm it disappears from the list reactively.
+
+### Step 8: Highlighting system — JS bridge, ContextMenu, restore
+
+**What was built:**
+- `assets/js/selection_listener.js` — exposes `window.__learnstack_getSelection()`: bottom-up XPath traversal using `node.tagName[n]` positional path from document root; text nodes get `/text()[n]` suffix; returns `{text, xpathStart, xpathEnd, startOffset, endOffset}` or null; error-guarded with try/catch
+- `assets/js/highlight_restore.js` — IIFE exposing `window.__learnstack_restoreHighlights(json)` (bulk restore), `window.__learnstack_applyHighlight(id, xpathStart, xpathEnd, startOffset, endOffset)` (single new mark), `window.__learnstack_scrollToHighlight(id)` (scroll-to from Highlights screen); uses `surroundContents` with fallback to `extractContents + appendChild` for cross-element selections (scenario 7 in acceptance criteria)
+- `lib/models/selection_data.dart` — plain immutable class (not freezed — no codegen needed for a value object with no pattern matching); `fromJson` factory handles numeric offset fields
+- `lib/services/js_bridge.dart` — `JsBridge(InAppWebViewController)`: `injectScripts()` loads both JS assets via rootBundle; `getSelection()` calls evaluateJavascript + JSON-decodes result; `applyHighlight()` uses `jsonEncode` on XPath strings for safe JS string literals; `restoreHighlights()` double-encodes (JSON array → JSON string → JS arg) so the JS function receives the string to parse
+- `lib/services/highlight_service.dart` — `HighlightService(highlightsDao, jsBridge)`: `createHighlight()` inserts to DB then calls `jsBridge.applyHighlight` with the new row ID; `restoreForChapter()` calls `highlightsDao.getByChapter()` then `jsBridge.restoreHighlights()`
+- `lib/models/highlight_with_chapter_and_resource.dart` — fully implemented as a real Drift result class with aliased SQL columns (`h_*`, `c_*`, `r_*`) to avoid naming collisions across the three-table join
+- `lib/db/daos/highlights_dao.dart` — `watchAll()` implemented with full three-table join (highlights ↔ chapters ↔ resources) aliased columns + ORDER BY `h.created_at DESC`; added `getByChapter()` (non-streaming Future for HighlightService)
+- `lib/providers/highlights_provider.dart` — `highlightsProvider` (all highlights stream), `chapterHighlightsProvider` (family by chapterId), `HighlightFilterNotifier` + `highlightFilterNotifierProvider` (scaffolded for step 10)
+- `lib/screens/reader/reader_screen.dart` — `ContextMenu` initialized as `late final` in `initState` with two items (Highlight/Add Note) using `id` parameter (flutter_inappwebview v6 API); `JsBridge` and `HighlightService` initialized in `onWebViewCreated`; `_onHighlightTapped` / `_onAddNoteTapped` methods guard null state; `_showNoteBottomSheet()` modal with autofocus TextField + Cancel/Save; `_onPageLoaded` now calls `injectScripts()` then `restoreForChapter()` then `scrollToHighlight()` (if `scrollToHighlightId` set in ReaderContext); temp mode returns early before script injection
+
+**Design decisions:**
+- `SelectionData` as plain class (not freezed): the spec says freezed but the practical benefit is zero here — no pattern matching, no union type, no copyWith needed. Avoids a build_runner re-run with no tradeoff.
+- Double JSON encode in `restoreHighlights`: `jsonEncode(jsonEncode(list))` produces a JS string literal that, when passed as a function arg, gives JS a string it can `JSON.parse`. Single encode would pass a JS object literal which the function doesn't expect.
+- `late final ContextMenu _contextMenu` in `initState`: ContextMenu must be stable across rebuilds; initializing in `build` would recreate it every frame. `late final` captures `this` in the action closures, giving access to `_jsBridge`/`_highlightService` at call time (they're guaranteed non-null once `onWebViewCreated` fires).
+- `surroundContents` + `extractContents` fallback: `surroundContents` is simpler and leaves the DOM cleaner but throws for cross-element ranges. The fallback handles scenario 7 (bold mid-sentence selections).
+- ContextMenu `id` not `androidId`: flutter_inappwebview v6 renamed the parameter.
+
+**Issues:** One linter warning — `if` without braces in `_isInTempMode` branch (carried over from step 7 style). Fixed immediately. `flutter analyze` — no issues.
+
+**Verification:** Learner to run all 8 scenarios against a real docs page in the reader.
+
 ### Step 7 (continued): Post-build fixes and additions
 
 **Issues encountered and resolved after initial build:**

@@ -50,8 +50,7 @@ class HighlightsDao extends DatabaseAccessor<AppDatabase>
       readsFrom: {highlights, chapters, resources},
     );
     return query.watch().map(
-          (rows) =>
-              rows.map(HighlightWithChapterAndResource.fromRow).toList(),
+          (rows) => rows.map(HighlightWithChapterAndResource.fromRow).toList(),
         );
   }
 
@@ -61,11 +60,10 @@ class HighlightsDao extends DatabaseAccessor<AppDatabase>
       .watch();
 
   /// Non-streaming fetch — used by HighlightService.restoreForChapter().
-  Future<List<Highlight>> getByChapter(int chapterId) =>
-      (select(highlights)
-            ..where((h) => h.chapterId.equals(chapterId))
-            ..orderBy([(h) => OrderingTerm.asc(h.createdAt)]))
-          .get();
+  Future<List<Highlight>> getByChapter(int chapterId) => (select(highlights)
+        ..where((h) => h.chapterId.equals(chapterId))
+        ..orderBy([(h) => OrderingTerm.asc(h.createdAt)]))
+      .get();
 
   Future<int> insertHighlight(HighlightsCompanion entry) =>
       into(highlights).insert(entry);
