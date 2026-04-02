@@ -80,8 +80,11 @@ class HighlightsScreen extends ConsumerWidget {
                       selectedColor: AppColors.accentSubtle,
                       checkmarkColor: AppColors.accent,
                       showCheckmark: false,
-                      avatar: filter.resourceId != null
-                          ? const Icon(Icons.close, size: 14)
+                      onDeleted: filter.resourceId != null
+                          ? () {
+                              filterNotifier.setResource(null);
+                              filterNotifier.setChapter(null);
+                            }
                           : null,
                     ),
                     const SizedBox(width: 8),
@@ -99,8 +102,8 @@ class HighlightsScreen extends ConsumerWidget {
                       selectedColor: AppColors.accentSubtle,
                       checkmarkColor: AppColors.accent,
                       showCheckmark: false,
-                      avatar: filter.chapterId != null
-                          ? const Icon(Icons.close, size: 14)
+                      onDeleted: filter.chapterId != null
+                          ? () => filterNotifier.setChapter(null)
                           : null,
                     ),
                   ],
@@ -144,11 +147,6 @@ class HighlightsScreen extends ConsumerWidget {
     int? currentId,
     HighlightFilterNotifier notifier,
   ) {
-    if (currentId != null) {
-      notifier.setResource(null);
-      notifier.setChapter(null);
-      return;
-    }
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => ListView(
@@ -180,10 +178,6 @@ class HighlightsScreen extends ConsumerWidget {
     int? currentId,
     HighlightFilterNotifier notifier,
   ) {
-    if (currentId != null) {
-      notifier.setChapter(null);
-      return;
-    }
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => ListView(
