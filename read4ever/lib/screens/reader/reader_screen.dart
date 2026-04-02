@@ -35,20 +35,28 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   bool _showErrorState = false;
   bool _lastLoadHadError = false;
 
-  // Original chapter data — set once in _init, never changes for this screen
+  // Original chapter data — set once in _init
   String? _chapterUrl;
   int? _resourceId;
 
-  // Temp chapter mode — non-null when WebView is showing a URL that isn't in
-  // the current resource (user clicked an outbound link).
+  // "Effective" chapter — starts as widget.chapterId but switches to a newly
+  // inserted chapter ID when the user adds a temp chapter in-place. The toolbar
+  // watches this ID so it reflects the page currently shown in the WebView.
+  int? _effectiveChapterId;
+
+  // Temp mode — non-null when the WebView is showing a URL that isn't (yet)
+  // in the library. Cleared when the chapter is added or dismissed.
   String? _tempChapterUrl;
   String? _tempChapterTitle;
+
+  bool get _isInTempMode => _tempChapterUrl != null;
 
   (int, ReaderContext) get _args => (widget.chapterId, widget.readerContext);
 
   @override
   void initState() {
     super.initState();
+    _effectiveChapterId = widget.chapterId;
     _init();
   }
 
@@ -68,25 +76,26 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   Future<NavigationActionPolicy> _handleNavigation(
     NavigationAction navigationAction,
   ) async {
-    // Only intercept main-frame navigations.
-    if (!navigationAction.isForMainFrame) {
-      return NavigationActionPolicy.ALLOW;
-    }
+    if (!navigationAction.isForMainFrame) return NavigationActionPolicy.ALLOW;
 
     final uri = navigationAction.request.url;
     if (uri == null) return NavigationActionPolicy.ALLOW;
     final url = uri.toString();
 
-    // Allow javascript: and about: URIs (page-internal, not real navigation).
+    // Allow in-page JS / blank targets.
     if (url.startsWith('javascript:') || url.startsWith('about:')) {
       return NavigationActionPolicy.ALLOW;
     }
 
-    // Always allow our own programmatic loads (initial URL, temp URL, dismiss).
-    if (url == _chapterUrl) {
-      // If we're returning to the original chapter URL (e.g., user clicked a
-      // back-link while in temp mode), exit temp mode.
-      if (_tempChapterUrl != null) {
+    final normalizedUrl = _normalizeUrl(url);
+    final normalizedChapterUrl =
+        _chapterUrl != null ? _normalizeUrl(_chapterUrl!) : null;
+
+    // ── Allow our own programmatic loads ──────────────────────────────────
+    // Use normalized comparison so trailing-slash differences don't break
+    // the check (the most common cause of the redirect-loop bug).
+    if (normalizedUrl == normalizedChapterUrl) {
+      if (_isInTempMode) {
         setState(() {
           _tempChapterUrl = null;
           _tempChapterTitle = null;
@@ -94,25 +103,36 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
       return NavigationActionPolicy.ALLOW;
     }
-    if (url == _tempChapterUrl) return NavigationActionPolicy.ALLOW;
 
-    // Allow anchor-only changes — same page, just a scroll.
-    if (_isSamePageAnchor(_tempChapterUrl ?? _chapterUrl, url)) {
-      return NavigationActionPolicy.CANCEL; // let JS handle the scroll
+    // Allow temp chapter URL (set before calling loadUrl so this fires first).
+    if (_tempChapterUrl != null &&
+        normalizedUrl == _normalizeUrl(_tempChapterUrl!)) {
+      return NavigationActionPolicy.ALLOW;
     }
 
-    // Non-HTTP/S URLs can't be opened in the WebView.
+    // ── Anchor-only navigation: ALLOW (WebView handles the scroll) ─────────
+    if (_isSamePageAnchor(_tempChapterUrl ?? _chapterUrl, url)) {
+      return NavigationActionPolicy.ALLOW;
+    }
+
+    // ── Non-HTTP/S: prompt external app ──────────────────────────────────
     if (!SitemapService().isValidUrl(url)) {
       _promptExternalUrl(url);
       return NavigationActionPolicy.CANCEL;
     }
 
-    // Check if the URL matches an existing chapter (any resource).
-    final normalized = _normalizeUrl(url);
+    // ── Check for existing chapter match (any resource) ──────────────────
     final db = ref.read(appDatabaseProvider);
-    final existing = await db.chaptersDao.findByUrl(normalized);
+    // Try both the normalized URL and the URL with a trailing slash, since
+    // stored URLs may or may not have a trailing slash.
+    final existing = await db.chaptersDao.findByUrl(normalizedUrl) ??
+        await db.chaptersDao.findByUrl('$normalizedUrl/');
 
     if (existing != null) {
+      // If it matches the chapter already showing, just allow the load.
+      if (existing.id == _effectiveChapterId) {
+        return NavigationActionPolicy.ALLOW;
+      }
       if (mounted) {
         context.pushReplacement(
           '/reader/${existing.id}',
@@ -122,15 +142,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return NavigationActionPolicy.CANCEL;
     }
 
-    // New URL — load it in the WebView and show the "add to library?" banner.
+    // ── New URL: show as temp chapter with banner ─────────────────────────
     _loadTempChapter(url);
     return NavigationActionPolicy.CANCEL;
   }
 
   void _loadTempChapter(String url) {
-    // Set _tempChapterUrl synchronously before calling loadUrl so that when
-    // shouldOverrideUrlLoading fires for the loadUrl call, the allow-check
-    // for `url == _tempChapterUrl` passes.
     _tempChapterUrl = url;
     _tempChapterTitle = null;
     setState(() {});
@@ -148,22 +165,24 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
   }
 
-  Future<void> _addTempChapterToResource() async {
-    if (_tempChapterUrl == null || _resourceId == null) return;
+  /// Inserts the current temp page as a real chapter and updates
+  /// [_effectiveChapterId] so the toolbar immediately reflects it.
+  /// Returns the new chapter ID, or null on failure.
+  Future<int?> _addTempChapterInPlace() async {
+    if (_tempChapterUrl == null || _resourceId == null) return null;
     final db = ref.read(appDatabaseProvider);
 
-    // Find the highest chapter position so we can append at the end.
-    final existing = await (db.select(db.chapters)
+    final allChapters = await (db.select(db.chapters)
           ..where((c) => c.resourceId.equals(_resourceId!))
           ..orderBy([(c) => OrderingTerm.desc(c.position)])
           ..limit(1))
         .get();
-    final nextPosition = existing.isEmpty ? 0 : existing.first.position + 1;
+    final nextPosition =
+        allChapters.isEmpty ? 0 : allChapters.first.position + 1;
 
     final normalizedUrl = _normalizeUrl(_tempChapterUrl!);
-    final title = (_tempChapterTitle?.isNotEmpty ?? false)
-        ? _tempChapterTitle!
-        : normalizedUrl;
+    final title =
+        (_tempChapterTitle?.isNotEmpty ?? false) ? _tempChapterTitle! : normalizedUrl;
 
     final newChapterId = await db.chaptersDao.insertChapter(ChaptersCompanion(
       resourceId: Value(_resourceId!),
@@ -173,11 +192,36 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       createdAt: Value(DateTime.now()),
     ));
 
+    await db.resourcesDao.updateLastOpened(_resourceId!, newChapterId);
+
     if (mounted) {
-      context.pushReplacement(
-        '/reader/$newChapterId',
-        extra: widget.readerContext,
-      );
+      setState(() {
+        _effectiveChapterId = newChapterId;
+        _tempChapterUrl = null;
+        _tempChapterTitle = null;
+      });
+    }
+    return newChapterId;
+  }
+
+  // ── Toolbar action handlers (auto-add in temp mode) ─────────────────────
+
+  Future<void> _handleBookmarkToggle() async {
+    if (_isInTempMode) await _addTempChapterInPlace();
+    final id = _effectiveChapterId;
+    if (id != null) {
+      await ref.read(appDatabaseProvider).chaptersDao.toggleBookmark(id);
+    }
+  }
+
+  Future<void> _handleDoneToggle(bool currentIsDone) async {
+    if (_isInTempMode) await _addTempChapterInPlace();
+    final id = _effectiveChapterId;
+    if (id != null) {
+      await ref
+          .read(appDatabaseProvider)
+          .chaptersDao
+          .setDone(id, !currentIsDone);
     }
   }
 
@@ -186,36 +230,28 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   Future<void> _onPageLoaded(InAppWebViewController controller) async {
     ref.read(readerNotifierProvider(_args).notifier).setLoading(false);
 
-    // Android loads its native error page after onReceivedError, which fires
-    // onLoadStop — skip everything so the overlay stays and the title is safe.
     if (_lastLoadHadError) return;
 
     final title = await controller.getTitle() ?? '';
 
-    if (_tempChapterUrl != null) {
-      // In temp mode — update the banner title but don't touch the chapter record.
-      if (mounted && title.isNotEmpty) {
-        setState(() => _tempChapterTitle = title);
-      }
+    if (_isInTempMode) {
+      if (mounted && title.isNotEmpty) setState(() => _tempChapterTitle = title);
       return;
     }
 
-    // Back to real chapter — clear any lingering error overlay.
     if (mounted) setState(() => _showErrorState = false);
 
     if (title.isNotEmpty && mounted) {
       await ref
           .read(appDatabaseProvider)
           .chaptersDao
-          .updateTitle(widget.chapterId, title);
+          .updateTitle(_effectiveChapterId ?? widget.chapterId, title);
     }
-    // Step 8 will add: inject selection_listener.js + highlight_restore.js
+    // Step 8 will add: jsBridge.injectScripts() + highlightService.restoreForChapter()
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  /// Returns true when [newUrl] differs from [currentUrl] only in its fragment
-  /// (anchor navigation within the same page).
   bool _isSamePageAnchor(String? currentUrl, String newUrl) {
     if (currentUrl == null) return false;
     try {
@@ -231,10 +267,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
   }
 
-  /// Strips fragment and trailing slash — used before querying the DB and
-  /// before storing a temp chapter URL.
   String _normalizeUrl(String url) {
-    var result = url.contains('#') ? url.substring(0, url.indexOf('#')) : url;
+    var result =
+        url.contains('#') ? url.substring(0, url.indexOf('#')) : url;
     if (result.endsWith('/')) result = result.substring(0, result.length - 1);
     return result;
   }
@@ -258,9 +293,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               if (uri != null) {
                 try {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
-                } catch (_) {
-                  // Swallow if the OS can't handle the scheme.
-                }
+                } catch (_) {}
               }
             },
             child: const Text('Open in browser'),
@@ -274,7 +307,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_chapterUrl == null || _resourceId == null) {
+    if (_chapterUrl == null || _resourceId == null || _effectiveChapterId == null) {
       return const Scaffold(body: SizedBox.shrink());
     }
 
@@ -285,12 +318,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         child: Column(
           children: [
             ReaderToolbar(
-              chapterId: widget.chapterId,
+              chapterId: _effectiveChapterId!,
               resourceId: _resourceId!,
               readerContext: widget.readerContext,
-              // In temp mode, back returns to original chapter instead of
-              // popping the reader screen entirely.
-              onBack: _tempChapterUrl != null ? _dismissTempChapter : null,
+              onBack: _isInTempMode ? _dismissTempChapter : null,
+              // Temp mode: override all state so the original chapter's
+              // bookmark/done don't bleed through.
+              titleOverride: _isInTempMode ? (_tempChapterTitle ?? '') : null,
+              bookmarkOverride: _isInTempMode ? false : null,
+              doneOverride: _isInTempMode ? false : null,
+              onBookmarkToggle: _isInTempMode ? _handleBookmarkToggle : null,
+              onDoneToggle: _isInTempMode ? _handleDoneToggle : null,
+              // Passes the temp title to the chapter dropdown so it renders
+              // the phantom "currently viewing" entry at the top.
+              tempChapterTitle: _isInTempMode ? (_tempChapterTitle ?? '') : null,
             ),
             AnimatedOpacity(
               opacity: readerState.isLoading ? 1.0 : 0.0,
@@ -305,31 +346,26 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               child: Stack(
                 children: [
                   InAppWebView(
-                    initialUrlRequest:
-                        URLRequest(url: WebUri(_chapterUrl!)),
+                    initialUrlRequest: URLRequest(url: WebUri(_chapterUrl!)),
                     initialSettings: InAppWebViewSettings(
                       javaScriptEnabled: true,
                       supportZoom: false,
                       transparentBackground: false,
-                      // Required for shouldOverrideUrlLoading to fire.
                       useShouldOverrideUrlLoading: true,
                     ),
                     onWebViewCreated: (controller) {
                       _webViewController = controller;
                     },
-                    shouldOverrideUrlLoading:
-                        (controller, navigationAction) async {
-                      return await _handleNavigation(navigationAction);
-                    },
+                    shouldOverrideUrlLoading: (controller, action) async =>
+                        await _handleNavigation(action),
                     onLoadStart: (controller, url) {
                       _lastLoadHadError = false;
                       ref
                           .read(readerNotifierProvider(_args).notifier)
                           .setLoading(true);
                     },
-                    onLoadStop: (controller, url) async {
-                      await _onPageLoaded(controller);
-                    },
+                    onLoadStop: (controller, url) async =>
+                        await _onPageLoaded(controller),
                     onReceivedError: (controller, request, error) {
                       if (!(request.isForMainFrame ?? false)) return;
                       _lastLoadHadError = true;
@@ -347,10 +383,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 ],
               ),
             ),
-            if (_tempChapterUrl != null)
+            if (_isInTempMode)
               TempChapterBanner(
                 pageTitle: _tempChapterTitle,
-                onAdd: _addTempChapterToResource,
+                onAdd: () => _addTempChapterInPlace(),
                 onDismiss: _dismissTempChapter,
               ),
           ],

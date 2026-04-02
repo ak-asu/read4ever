@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/app_colors.dart';
+
 /// Persistent banner shown when the WebView is displaying a URL that isn't
-/// part of the current resource. Offers to add the page as a new chapter or
-/// return to the original chapter.
+/// part of the current resource. Styled to match the app's surface/sheet
+/// aesthetic — not a high-contrast system snackbar.
 class TempChapterBanner extends StatelessWidget {
   final String? pageTitle;
   final VoidCallback onAdd;
@@ -17,27 +19,36 @@ class TempChapterBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondary;
+
     return Container(
-      color: colorScheme.inverseSurface,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: AppColors.accent,
+            width: 1.5,
+          ),
+        ),
+      ),
       padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
       child: Row(
         children: [
           Expanded(
             child: Text(
-              pageTitle != null && pageTitle!.isNotEmpty
+              (pageTitle?.isNotEmpty ?? false)
                   ? '"$pageTitle" isn\'t in your library'
                   : 'This page isn\'t in your library',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: colorScheme.onInverseSurface),
+              style: theme.textTheme.bodySmall?.copyWith(color: textColor),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: colorScheme.inversePrimary,
+              foregroundColor: AppColors.accent,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               visualDensity: VisualDensity.compact,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -47,7 +58,7 @@ class TempChapterBanner extends StatelessWidget {
           ),
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: colorScheme.inversePrimary,
+              foregroundColor: AppColors.accent,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               visualDensity: VisualDensity.compact,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,

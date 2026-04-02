@@ -11,9 +11,29 @@ class ReaderToolbar extends ConsumerWidget {
   final int chapterId;
   final int resourceId;
   final ReaderContext readerContext;
-  /// If non-null, overrides the default back behavior (context.pop()).
-  /// Used to return to the original chapter when in temp-chapter mode.
+
+  /// Overrides the default back behavior. Used in temp mode to return to the
+  /// original chapter instead of popping the reader.
   final VoidCallback? onBack;
+
+  /// When set, shown instead of the DB chapter title (temp mode).
+  final String? titleOverride;
+
+  /// When set, shown instead of the DB-derived bookmark state (temp mode → false).
+  final bool? bookmarkOverride;
+
+  /// When set, shown instead of the DB-derived done state (temp mode → false).
+  final bool? doneOverride;
+
+  /// When set, called instead of the default toggleBookmark (temp mode auto-add).
+  final VoidCallback? onBookmarkToggle;
+
+  /// When set, called instead of the default setDone (temp mode auto-add).
+  final void Function(bool currentIsDone)? onDoneToggle;
+
+  /// When set, the chapter dropdown shows this as the currently-viewing temp
+  /// entry and highlights no existing chapter.
+  final String? tempChapterTitle;
 
   const ReaderToolbar({
     super.key,
@@ -21,15 +41,23 @@ class ReaderToolbar extends ConsumerWidget {
     required this.resourceId,
     required this.readerContext,
     this.onBack,
+    this.titleOverride,
+    this.bookmarkOverride,
+    this.doneOverride,
+    this.onBookmarkToggle,
+    this.onDoneToggle,
+    this.tempChapterTitle,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final chapterAsync = ref.watch(chapterStreamProvider(chapterId));
-
     final chapter = chapterAsync.valueOrNull;
-    final isBookmarked = chapter?.bookmarkedAt != null;
-    final isDone = chapter?.isDone ?? false;
+
+    final isBookmarked = bookmarkOverride ?? (chapter?.bookmarkedAt != null);
+    final isDone = doneOverride ?? (chapter?.isDone ?? false);
+    final title = titleOverride ?? chapter?.title ?? '';
+    final isTempMode = tempChapterTitle != null;
 
     return SizedBox(
       height: 56,
@@ -43,14 +71,16 @@ class ReaderToolbar extends ConsumerWidget {
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: chapter != null
+              // Allow opening dropdown even in temp mode — the sheet shows the
+              // temp entry plus the full saved chapter list.
+              onTap: (chapter != null || isTempMode)
                   ? () => _showChapterDropdown(context, ref)
                   : null,
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
-                      chapter?.title ?? '',
+                      title,
                       style: Theme.of(context).textTheme.titleSmall,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -65,12 +95,13 @@ class ReaderToolbar extends ConsumerWidget {
               isBookmarked ? Icons.bookmark : Icons.bookmark_border,
               color: isBookmarked ? AppColors.accent : null,
             ),
-            onPressed: chapter != null
-                ? () => ref
-                    .read(appDatabaseProvider)
-                    .chaptersDao
-                    .toggleBookmark(chapterId)
-                : null,
+            onPressed: onBookmarkToggle ??
+                (chapter != null
+                    ? () => ref
+                        .read(appDatabaseProvider)
+                        .chaptersDao
+                        .toggleBookmark(chapterId)
+                    : null),
             tooltip: isBookmarked ? 'Remove bookmark' : 'Bookmark',
           ),
           IconButton(
@@ -78,12 +109,14 @@ class ReaderToolbar extends ConsumerWidget {
               isDone ? Icons.check_circle : Icons.check_circle_outline,
               color: isDone ? AppColors.accent : null,
             ),
-            onPressed: chapter != null
-                ? () => ref
-                    .read(appDatabaseProvider)
-                    .chaptersDao
-                    .setDone(chapterId, !isDone)
-                : null,
+            onPressed: onDoneToggle != null
+                ? () => onDoneToggle!(isDone)
+                : (chapter != null
+                    ? () => ref
+                        .read(appDatabaseProvider)
+                        .chaptersDao
+                        .setDone(chapterId, !isDone)
+                    : null),
             tooltip: isDone ? 'Mark not done' : 'Mark done',
           ),
         ],
@@ -97,7 +130,9 @@ class ReaderToolbar extends ConsumerWidget {
       isScrollControlled: true,
       builder: (_) => ChapterDropdownSheet(
         resourceId: resourceId,
-        currentChapterId: chapterId,
+        // In temp mode no existing chapter is "current".
+        currentChapterId: tempChapterTitle != null ? null : chapterId,
+        tempChapterTitle: tempChapterTitle,
         onChapterSelected: (id) => Navigator.of(context).pop(id),
       ),
     );
