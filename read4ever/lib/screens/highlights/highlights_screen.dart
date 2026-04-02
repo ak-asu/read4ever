@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/highlight_with_chapter_and_resource.dart';
-import '../../providers/database_provider.dart';
 import '../../providers/highlights_provider.dart';
 import '../../providers/multi_select_provider.dart';
 import '../../theme/app_colors.dart';
@@ -38,8 +37,6 @@ class HighlightsScreen extends ConsumerWidget {
           return true;
         }).toList();
 
-        final filteredIds = filtered.map((item) => item.highlight.id).toList();
-
         // ── Derive unique resources + chapters for filter pickers ─────────
         final resourceMap = <int, String>{};
         for (final item in all) {
@@ -63,20 +60,6 @@ class HighlightsScreen extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Multi-select action bar ───────────────────────────────────
-            if (isMultiSelect)
-              _MultiSelectBar(
-                count: selected.length,
-                onSelectAll: () => selectNotifier.selectAll(filteredIds),
-                onClear: selectNotifier.clear,
-                onDelete: () => _confirmBulkDelete(
-                  context,
-                  ref,
-                  selected.toList(),
-                  selectNotifier,
-                ),
-              ),
-
             // ── Filter bar — shown only when there are highlights ─────────
             if (all.isNotEmpty && !isMultiSelect)
               SingleChildScrollView(
@@ -236,38 +219,6 @@ class HighlightsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmBulkDelete(
-    BuildContext context,
-    WidgetRef ref,
-    List<int> ids,
-    MultiSelectNotifier notifier,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete highlights?'),
-        content: Text(
-          'Delete ${ids.length} highlight${ids.length == 1 ? '' : 's'}? This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      await ref.read(appDatabaseProvider).highlightsDao.bulkDelete(ids);
-      notifier.clear();
-    }
-  }
-
   // ── Empty state ───────────────────────────────────────────────────────────
 
   Widget _buildEmptyState(BuildContext context, bool noHighlightsAtAll) {
@@ -302,57 +253,6 @@ class HighlightsScreen extends ConsumerWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── Multi-select action bar ───────────────────────────────────────────────────
-
-class _MultiSelectBar extends StatelessWidget {
-  final int count;
-  final VoidCallback onSelectAll;
-  final VoidCallback onClear;
-  final VoidCallback onDelete;
-
-  const _MultiSelectBar({
-    required this.count,
-    required this.onSelectAll,
-    required this.onClear,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final barColor = isDark ? AppColors.surfaceDark : AppColors.surface;
-
-    return Material(
-      elevation: 2,
-      color: barColor,
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.close),
-            tooltip: 'Clear selection',
-            onPressed: onClear,
-          ),
-          Text(
-            '$count selected',
-            style: theme.textTheme.titleSmall,
-          ),
-          const Spacer(),
-          TextButton(
-            onPressed: onSelectAll,
-            child: const Text('Select all'),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Delete selected',
-            onPressed: onDelete,
-          ),
-        ],
       ),
     );
   }

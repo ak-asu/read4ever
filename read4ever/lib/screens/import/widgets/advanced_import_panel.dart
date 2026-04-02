@@ -35,6 +35,7 @@ class _AdvancedImportPanelState extends ConsumerState<AdvancedImportPanel> {
   Widget build(BuildContext context) {
     final state = ref.watch(importNotifierProvider);
     final notifier = ref.read(importNotifierProvider.notifier);
+    final deselected = state.deselectedUrls.toSet();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final secondaryColor =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondary;
@@ -111,37 +112,38 @@ class _AdvancedImportPanelState extends ConsumerState<AdvancedImportPanel> {
               .copyWith(color: secondaryColor),
         ),
         const SizedBox(height: 4),
-        ReorderableListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: state.allPages.length,
-          onReorder: notifier.reorderPage,
-          itemBuilder: (context, index) {
-            final page = state.allPages[index];
-            final isSelected = state.isSelected(page);
-            return ListTile(
-              key: ValueKey(page.url),
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: ReorderableDragStartListener(
-                index: index,
-                child: const Icon(Icons.drag_handle, size: 20),
-              ),
-              title: Text(
-                page.title,
-                style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                      color: isSelected ? null : secondaryColor,
-                    ),
-              ),
-              trailing: Checkbox(
-                activeColor: AppColors.accent,
-                value: state.allPages.length == 1 ? true : isSelected,
-                onChanged: state.allPages.length == 1
-                    ? null
-                    : (_) => notifier.togglePage(page),
-              ),
-            );
-          },
+        Expanded(
+          child: ReorderableListView.builder(
+            primary: false,
+            itemCount: state.allPages.length,
+            onReorder: notifier.reorderPage,
+            itemBuilder: (context, index) {
+              final page = state.allPages[index];
+              final isSelected = !deselected.contains(page.url);
+              return ListTile(
+                key: ValueKey(page.url),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: ReorderableDragStartListener(
+                  index: index,
+                  child: const Icon(Icons.drag_handle, size: 20),
+                ),
+                title: Text(
+                  page.title,
+                  style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                        color: isSelected ? null : secondaryColor,
+                      ),
+                ),
+                trailing: Checkbox(
+                  activeColor: AppColors.accent,
+                  value: state.allPages.length == 1 ? true : isSelected,
+                  onChanged: state.allPages.length == 1
+                      ? null
+                      : (_) => notifier.togglePage(page),
+                ),
+              );
+            },
+          ),
         ),
       ],
     );

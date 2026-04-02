@@ -6,8 +6,8 @@ import '../../theme/app_colors.dart';
 import 'widgets/advanced_import_panel.dart';
 import 'widgets/sitemap_chapter_list.dart';
 
-/// Route-based entry point for `/import`. Used by the Android share intent handler (step 14).
-/// Shows the import bottom sheet over a transparent scaffold and pops when the sheet closes.
+/// Route-based entry point for `/import`.
+/// Shows the import bottom sheet and pops when the sheet closes.
 /// [initialUrl] pre-fills the URL field; when set via a share intent, discovery also starts
 /// automatically.
 class ImportScreen extends StatefulWidget {
@@ -37,7 +37,9 @@ class _ImportScreenState extends State<ImportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(backgroundColor: Colors.transparent);
+    return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
+    );
   }
 }
 
@@ -52,6 +54,7 @@ Future<void> showImportBottomSheet(
 }) {
   return showModalBottomSheet(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     useSafeArea: true,
     shape: const RoundedRectangleBorder(
@@ -89,7 +92,6 @@ class ImportBottomSheet extends ConsumerStatefulWidget {
 
 class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
   late TextEditingController _urlController;
-  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -116,7 +118,6 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
   @override
   void dispose() {
     _urlController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -131,133 +132,138 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondary;
 
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final maxSheetHeight = MediaQuery.sizeOf(context).height * 0.9;
+    final selectedCount = state.selectedCount;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomInset),
-      child: SingleChildScrollView(
-        controller: _scrollController,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Import resource',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // URL field + Discover button
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _urlController,
-                    decoration: InputDecoration(
-                      hintText: 'https://docs.example.com',
-                      border: const OutlineInputBorder(),
-                      isDense: true,
-                      errorText: state.status == ImportStatus.error
-                          ? state.errorMessage
-                          : null,
-                    ),
-                    keyboardType: TextInputType.url,
-                    autocorrect: false,
-                    onChanged: notifier.setUrl,
-                    onSubmitted: (_) => _discover(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: isLoading ? null : _discover,
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Scan'),
-                ),
-              ],
-            ),
-
-            // Chapter list (shown when discovery is done)
-            if (isReady) ...[
-              const SizedBox(height: 16),
-
-              // Chapter count summary + Advanced/Simple toggle on the same row
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxSheetHeight),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Header
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      '${state.selectedPages.length} of ${state.allPages.length} '
-                      'chapter${state.allPages.length == 1 ? '' : 's'} selected',
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelMedium!
-                          .copyWith(color: secondaryColor),
+                      'Import resource',
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: notifier.toggleAdvanced,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      visualDensity: VisualDensity.compact,
-                      textStyle: Theme.of(context).textTheme.labelMedium,
-                    ),
-                    icon: Icon(
-                      state.isAdvanced ? Icons.expand_less : Icons.expand_more,
-                      size: 16,
-                    ),
-                    label: Text(state.isAdvanced ? 'Simple' : 'Advanced'),
-                    iconAlignment: IconAlignment.end,
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
 
-              // Simple mode: checkbox list
-              if (!state.isAdvanced) const SitemapChapterList(),
+              // URL field + Discover button
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _urlController,
+                      decoration: InputDecoration(
+                        hintText: 'https://docs.example.com',
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                        errorText: state.status == ImportStatus.error
+                            ? state.errorMessage
+                            : null,
+                      ),
+                      keyboardType: TextInputType.url,
+                      autocorrect: false,
+                      onChanged: notifier.setUrl,
+                      onSubmitted: (_) => _discover(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: isLoading ? null : _discover,
+                    child: isLoading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Scan'),
+                  ),
+                ],
+              ),
 
-              // Advanced mode: form fields (name/desc/depth) then reorderable list
-              if (state.isAdvanced) const AdvancedImportPanel(),
+              if (isReady) ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '$selectedCount of ${state.allPages.length} '
+                        'chapter${state.allPages.length == 1 ? '' : 's'} selected',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelMedium!
+                            .copyWith(color: secondaryColor),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: notifier.toggleAdvanced,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                        textStyle: Theme.of(context).textTheme.labelMedium,
+                      ),
+                      icon: Icon(
+                        state.isAdvanced
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        size: 16,
+                      ),
+                      label: Text(state.isAdvanced ? 'Simple' : 'Advanced'),
+                      iconAlignment: IconAlignment.end,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: state.isAdvanced
+                      ? const AdvancedImportPanel()
+                      : const SitemapChapterList(),
+                ),
+              ] else
+                const Spacer(),
+
+              const SizedBox(height: 16),
+
+              // Action buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: isReady && !isLoading
+                        ? () => notifier.confirm(context)
+                        : null,
+                    child: const Text('Import'),
+                  ),
+                ],
+              ),
             ],
-
-            const SizedBox(height: 16),
-
-            // Action buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: isReady && !isLoading
-                      ? () => notifier.confirm(context)
-                      : null,
-                  child: const Text('Import'),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );

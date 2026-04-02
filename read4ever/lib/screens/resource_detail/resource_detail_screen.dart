@@ -391,8 +391,13 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                 title: Text('${selected.length} selected'),
                 actions: [
                   TextButton(
-                    onPressed: () => selectNotifier.selectAll(chapterIds),
-                    child: const Text('Select all'),
+                    onPressed: () => selectNotifier.toggleSelectAll(chapterIds),
+                    child: Text(
+                      selected.length == chapterIds.length &&
+                              chapterIds.isNotEmpty
+                          ? 'Deselect all'
+                          : 'Select all',
+                    ),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline),

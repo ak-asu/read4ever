@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'providers/reader_provider.dart';
 import 'screens/library/library_screen.dart';
@@ -9,7 +10,10 @@ import 'screens/reader/reader_screen.dart';
 import 'screens/import/import_screen.dart';
 import 'widgets/drawer_scaffold.dart';
 
+final rootNavigatorKey = GlobalKey<NavigatorState>();
+
 final appRouter = GoRouter(
+  navigatorKey: rootNavigatorKey,
   initialLocation: '/library',
   routes: [
     ShellRoute(

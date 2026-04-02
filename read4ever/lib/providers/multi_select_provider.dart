@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'bookmarks_provider.dart';
+import 'highlights_provider.dart';
+
 /// Shared multi-select notifier used across list screens.
 ///
 /// State is the set of currently-selected IDs.
@@ -21,6 +24,17 @@ class MultiSelectNotifier extends AutoDisposeNotifier<Set<int>> {
 
   void selectAll(List<int> ids) {
     state = Set<int>.from(ids);
+  }
+
+  /// Selects all if not every id is currently selected; deselects all otherwise.
+  void toggleSelectAll(List<int> ids) {
+    if (ids.isNotEmpty &&
+        state.length == ids.length &&
+        state.containsAll(ids)) {
+      state = const {};
+    } else {
+      state = Set<int>.from(ids);
+    }
   }
 
   void clear() {
@@ -45,3 +59,37 @@ final resourceDetailMultiSelectProvider =
     AutoDisposeNotifierProvider<MultiSelectNotifier, Set<int>>(
   MultiSelectNotifier.new,
 );
+
+/// Derived list of highlight IDs that match the current filter.
+/// Used by DrawerScaffold to drive the select-all toggle.
+final highlightsFilteredIdsProvider = AutoDisposeProvider<List<int>>((ref) {
+  final allAsync = ref.watch(highlightsProvider);
+  final filter = ref.watch(highlightFilterNotifierProvider);
+  return allAsync.when(
+    data: (all) => all
+        .where((item) {
+          if (filter.resourceId != null &&
+              item.resource.id != filter.resourceId) {
+            return false;
+          }
+          if (filter.chapterId != null && item.chapter.id != filter.chapterId) {
+            return false;
+          }
+          return true;
+        })
+        .map((item) => item.highlight.id)
+        .toList(),
+    loading: () => [],
+    error: (_, __) => [],
+  );
+});
+
+/// Derived list of bookmarked chapter IDs.
+/// Used by DrawerScaffold to drive the select-all toggle.
+final bookmarksAllIdsProvider = AutoDisposeProvider<List<int>>((ref) {
+  final bookmarks = ref.watch(bookmarksProvider);
+  return bookmarks.maybeWhen(
+    data: (items) => items.map((i) => i.chapter.id).toList(),
+    orElse: () => [],
+  );
+});

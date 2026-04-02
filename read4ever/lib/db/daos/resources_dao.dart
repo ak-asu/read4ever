@@ -76,8 +76,27 @@ class ResourcesDao extends DatabaseAccessor<AppDatabase>
   Future<int> insertResource(ResourcesCompanion entry) =>
       into(resources).insert(entry);
 
-  Future<bool> updateResource(ResourcesCompanion entry) =>
-      update(resources).replace(entry);
+  Future<bool> updateResource(ResourcesCompanion entry) async {
+    if (!entry.id.present) {
+      throw ArgumentError('updateResource requires an id');
+    }
+
+    final hasFieldToUpdate = entry.title.present ||
+        entry.description.present ||
+        entry.url.present ||
+        entry.createdAt.present ||
+        entry.lastAccessedAt.present ||
+        entry.lastOpenedChapterId.present;
+    if (!hasFieldToUpdate) {
+      throw ArgumentError(
+          'updateResource requires at least one field to update');
+    }
+
+    final affected = await (update(resources)
+          ..where((r) => r.id.equals(entry.id.value)))
+        .write(entry.copyWith(id: const Value.absent()));
+    return affected > 0;
+  }
 
   Future<int> deleteById(int id) =>
       (delete(resources)..where((r) => r.id.equals(id))).go();

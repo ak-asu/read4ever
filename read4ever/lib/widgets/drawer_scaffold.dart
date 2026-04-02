@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class DrawerScaffold extends StatelessWidget {
+import '../providers/database_provider.dart';
+import '../providers/multi_select_provider.dart';
+
+class DrawerScaffold extends ConsumerWidget {
   final Widget child;
   final GoRouterState state;
 
@@ -32,12 +36,87 @@ class DrawerScaffold extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = state.uri.toString();
-    final title = _titleFor(location);
+
+    AppBar appBar;
+
+    if (location.startsWith('/highlights')) {
+      final selected = ref.watch(highlightsMultiSelectProvider);
+      final selectNotifier = ref.read(highlightsMultiSelectProvider.notifier);
+      final allIds = ref.watch(highlightsFilteredIdsProvider);
+
+      if (selected.isNotEmpty) {
+        final allSelected =
+            allIds.isNotEmpty && selected.length == allIds.length;
+        appBar = AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Clear selection',
+            onPressed: selectNotifier.clear,
+          ),
+          title: Text('${selected.length} selected'),
+          actions: [
+            TextButton(
+              onPressed: () => selectNotifier.toggleSelectAll(allIds),
+              child: Text(allSelected ? 'Deselect all' : 'Select all'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete selected',
+              onPressed: () => _confirmDeleteHighlights(
+                context,
+                ref,
+                selected.toList(),
+                selectNotifier,
+              ),
+            ),
+          ],
+        );
+      } else {
+        appBar = AppBar(title: Text(_titleFor(location)));
+      }
+    } else if (location.startsWith('/bookmarks')) {
+      final selected = ref.watch(bookmarksMultiSelectProvider);
+      final selectNotifier = ref.read(bookmarksMultiSelectProvider.notifier);
+      final allIds = ref.watch(bookmarksAllIdsProvider);
+
+      if (selected.isNotEmpty) {
+        final allSelected =
+            allIds.isNotEmpty && selected.length == allIds.length;
+        appBar = AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Clear selection',
+            onPressed: selectNotifier.clear,
+          ),
+          title: Text('${selected.length} selected'),
+          actions: [
+            TextButton(
+              onPressed: () => selectNotifier.toggleSelectAll(allIds),
+              child: Text(allSelected ? 'Deselect all' : 'Select all'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.bookmark_remove_outlined),
+              tooltip: 'Remove bookmarks',
+              onPressed: () => _confirmUnbookmark(
+                context,
+                ref,
+                selected.toList(),
+                selectNotifier,
+              ),
+            ),
+          ],
+        );
+      } else {
+        appBar = AppBar(title: Text(_titleFor(location)));
+      }
+    } else {
+      appBar = AppBar(title: Text(_titleFor(location)));
+    }
 
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: appBar,
       drawer: NavigationDrawer(
         selectedIndex: _destinations.indexWhere(
           (d) => location.startsWith(d.route),
@@ -64,6 +143,69 @@ class DrawerScaffold extends StatelessWidget {
       ),
       body: child,
     );
+  }
+
+  Future<void> _confirmDeleteHighlights(
+    BuildContext context,
+    WidgetRef ref,
+    List<int> ids,
+    MultiSelectNotifier notifier,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete highlights?'),
+        content: Text(
+          'Delete ${ids.length} highlight${ids.length == 1 ? '' : 's'}? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(appDatabaseProvider).highlightsDao.bulkDelete(ids);
+      notifier.clear();
+    }
+  }
+
+  Future<void> _confirmUnbookmark(
+    BuildContext context,
+    WidgetRef ref,
+    List<int> ids,
+    MultiSelectNotifier notifier,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove bookmarks?'),
+        content: Text(
+          'Remove ${ids.length} bookmark${ids.length == 1 ? '' : 's'}? The chapters will not be deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(appDatabaseProvider).chaptersDao.bulkUnbookmark(ids);
+      notifier.clear();
+    }
   }
 }
 

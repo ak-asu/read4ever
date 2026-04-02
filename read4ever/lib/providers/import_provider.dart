@@ -31,6 +31,8 @@ class ImportState with _$ImportState {
 }
 
 extension ImportStateX on ImportState {
+  int get selectedCount => allPages.length - deselectedUrls.length;
+
   List<SitemapPage> get selectedPages =>
       allPages.where((p) => !deselectedUrls.contains(p.url)).toList();
 
@@ -58,7 +60,7 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
   void togglePage(SitemapPage page) {
     final isCurrentlySelected = state.isSelected(page);
     // Block deselecting the last selected page
-    if (isCurrentlySelected && state.selectedPages.length == 1) return;
+    if (isCurrentlySelected && state.selectedCount == 1) return;
 
     final updated = List<String>.from(state.deselectedUrls);
     if (isCurrentlySelected) {
@@ -80,7 +82,7 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
 
   /// Runs sitemap discovery from scratch:
   ///   1. Validate URL
-  ///   2. Duplicate detection (chapter URL match → reader; resource URL match → resource detail)
+  ///   2. Duplicate detection (chapter/resource URL match → resource detail)
   ///   3. Sitemap discovery
   ///   4. Single-page fallback on null result
   ///
@@ -107,7 +109,7 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
     if (existingChapter != null) {
       if (context.mounted) {
         context.pop();
-        context.push('/reader/${existingChapter.id}');
+        context.push('/resource/${existingChapter.resourceId}');
       }
       return;
     }
@@ -211,28 +213,36 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
       ),
     );
 
-    // 2. Insert chapters one at a time to capture the first ID
-    int firstChapterId = -1;
-    for (int i = 0; i < selected.length; i++) {
-      final chapterId = await db.chaptersDao.insertChapter(
-        ChaptersCompanion(
-          resourceId: Value(resourceId),
-          title: Value(selected[i].title),
-          url: Value(selected[i].url),
-          position: Value(i),
-          createdAt: Value(now),
-        ),
+    // 2. Batch insert chapters to keep UI responsive on very large imports.
+    final entries = List<ChaptersCompanion>.generate(
+      selected.length,
+      (i) => ChaptersCompanion(
+        resourceId: Value(resourceId),
+        title: Value(selected[i].title),
+        url: Value(selected[i].url),
+        position: Value(i),
+        createdAt: Value(now),
+      ),
+      growable: false,
+    );
+    await db.chaptersDao.insertAll(entries);
+
+    final firstChapter = await db.chaptersDao.getFirstByResource(resourceId);
+    if (firstChapter == null) {
+      state = state.copyWith(
+        status: ImportStatus.error,
+        errorMessage: 'Could not create chapters. Please try again.',
       );
-      if (i == 0) firstChapterId = chapterId;
+      return;
     }
 
     // 3. Set the first chapter as the resume target
-    await db.resourcesDao.updateLastOpened(resourceId, firstChapterId);
+    await db.resourcesDao.updateLastOpened(resourceId, firstChapter.id);
 
     // 4. Navigate: close sheet → open reader
     if (context.mounted) {
       context.pop();
-      context.push('/reader/$firstChapterId');
+      context.push('/reader/${firstChapter.id}');
     }
   }
 

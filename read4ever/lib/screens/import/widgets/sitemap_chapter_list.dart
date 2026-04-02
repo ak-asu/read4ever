@@ -12,17 +12,17 @@ class SitemapChapterList extends ConsumerWidget {
     final state = ref.watch(importNotifierProvider);
     final notifier = ref.read(importNotifierProvider.notifier);
     final isStandalone = state.allPages.length == 1;
+    final deselected = state.deselectedUrls.toSet();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final secondaryColor =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondary;
 
     return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+      primary: false,
       itemCount: state.allPages.length,
       itemBuilder: (context, index) {
         final page = state.allPages[index];
-        final isSelected = state.isSelected(page);
+        final isSelected = !deselected.contains(page.url);
 
         return CheckboxListTile(
           dense: true,

@@ -61,6 +61,12 @@ class ChaptersDao extends DatabaseAccessor<AppDatabase>
     await batch((b) => b.insertAll(chapters, entries));
   }
 
+  Future<Chapter?> getFirstByResource(int resourceId) => (select(chapters)
+        ..where((c) => c.resourceId.equals(resourceId))
+        ..orderBy([(c) => OrderingTerm.asc(c.position)])
+        ..limit(1))
+      .getSingleOrNull();
+
   Future<void> setDone(int id, bool done) =>
       (update(chapters)..where((c) => c.id.equals(id)))
           .write(ChaptersCompanion(isDone: Value(done)));
