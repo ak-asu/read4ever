@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../db/database.dart';
 import '../../providers/database_provider.dart';
 import '../../providers/reader_provider.dart';
+import '../../services/js_bridge.dart';
+import '../../services/highlight_service.dart';
 import '../../services/sitemap_service.dart';
 import '../../theme/app_colors.dart';
 import 'reader_toolbar.dart';
@@ -30,6 +32,9 @@ class ReaderScreen extends ConsumerStatefulWidget {
 
 class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   InAppWebViewController? _webViewController;
+  JsBridge? _jsBridge;
+  HighlightService? _highlightService;
+  late final ContextMenu _contextMenu;
 
   // Error state
   bool _showErrorState = false;
@@ -40,12 +45,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   int? _resourceId;
 
   // "Effective" chapter — starts as widget.chapterId but switches to a newly
-  // inserted chapter ID when the user adds a temp chapter in-place. The toolbar
-  // watches this ID so it reflects the page currently shown in the WebView.
+  // inserted chapter ID when the user adds a temp chapter in-place.
   int? _effectiveChapterId;
 
-  // Temp mode — non-null when the WebView is showing a URL that isn't (yet)
-  // in the library. Cleared when the chapter is added or dismissed.
+  // Temp mode — non-null when the WebView is showing a URL not yet in the library.
   String? _tempChapterUrl;
   String? _tempChapterTitle;
 
@@ -57,6 +60,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   void initState() {
     super.initState();
     _effectiveChapterId = widget.chapterId;
+    _contextMenu = ContextMenu(
+      menuItems: [
+        ContextMenuItem(
+          id: 1,
+          title: 'Highlight',
+          action: _onHighlightTapped,
+        ),
+        ContextMenuItem(
+          id: 2,
+          title: 'Add Note',
+          action: _onAddNoteTapped,
+        ),
+      ],
+      settings: ContextMenuSettings(hideDefaultSystemContextMenuItems: true),
+    );
     _init();
   }
 
@@ -69,6 +87,79 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       _resourceId = chapter.resourceId;
     });
     await db.resourcesDao.updateLastOpened(chapter.resourceId, chapter.id);
+  }
+
+  // ── ContextMenu action handlers ──────────────────────────────────────────
+
+  Future<void> _onHighlightTapped() async {
+    final sel = await _jsBridge?.getSelection();
+    if (sel == null || !mounted) return;
+    final chapterId = _effectiveChapterId;
+    if (chapterId == null) return;
+    await _highlightService?.createHighlight(chapterId, sel);
+  }
+
+  Future<void> _onAddNoteTapped() async {
+    final sel = await _jsBridge?.getSelection();
+    if (sel == null || !mounted) return;
+    final chapterId = _effectiveChapterId;
+    if (chapterId == null) return;
+    _showNoteBottomSheet(chapterId, sel);
+  }
+
+  void _showNoteBottomSheet(int chapterId, sel) {
+    final controller = TextEditingController();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 16,
+          right: 16,
+          top: 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              maxLines: null,
+              decoration: const InputDecoration(
+                hintText: 'Add a note...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () async {
+                    final note = controller.text.trim();
+                    Navigator.of(ctx).pop();
+                    await _highlightService?.createHighlight(
+                      chapterId,
+                      sel,
+                      note: note.isEmpty ? null : note,
+                    );
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    ).whenComplete(() => controller.dispose());
   }
 
   // ── Navigation intercept ─────────────────────────────────────────────────
@@ -92,8 +183,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         _chapterUrl != null ? _normalizeUrl(_chapterUrl!) : null;
 
     // ── Allow our own programmatic loads ──────────────────────────────────
-    // Use normalized comparison so trailing-slash differences don't break
-    // the check (the most common cause of the redirect-loop bug).
     if (normalizedUrl == normalizedChapterUrl) {
       if (_isInTempMode) {
         setState(() {
@@ -123,13 +212,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     // ── Check for existing chapter match (any resource) ──────────────────
     final db = ref.read(appDatabaseProvider);
-    // Try both the normalized URL and the URL with a trailing slash, since
-    // stored URLs may or may not have a trailing slash.
     final existing = await db.chaptersDao.findByUrl(normalizedUrl) ??
         await db.chaptersDao.findByUrl('$normalizedUrl/');
 
     if (existing != null) {
-      // If it matches the chapter already showing, just allow the load.
       if (existing.id == _effectiveChapterId) {
         return NavigationActionPolicy.ALLOW;
       }
@@ -165,9 +251,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
   }
 
-  /// Inserts the current temp page as a real chapter and updates
-  /// [_effectiveChapterId] so the toolbar immediately reflects it.
-  /// Returns the new chapter ID, or null on failure.
   Future<int?> _addTempChapterInPlace() async {
     if (_tempChapterUrl == null || _resourceId == null) return null;
     final db = ref.read(appDatabaseProvider);
@@ -236,8 +319,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final title = await controller.getTitle() ?? '';
 
     if (_isInTempMode) {
-      if (mounted && title.isNotEmpty)
+      if (mounted && title.isNotEmpty) {
         setState(() => _tempChapterTitle = title);
+      }
       return;
     }
 
@@ -249,7 +333,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           .chaptersDao
           .updateTitle(_effectiveChapterId ?? widget.chapterId, title);
     }
-    // Step 8 will add: jsBridge.injectScripts() + highlightService.restoreForChapter()
+
+    // Inject selection + highlight scripts, then restore saved highlights.
+    final bridge = _jsBridge;
+    final service = _highlightService;
+    final chapterId = _effectiveChapterId;
+    if (bridge != null && service != null && chapterId != null) {
+      await bridge.injectScripts();
+      await service.restoreForChapter(chapterId);
+
+      // If opened from the Highlights screen, scroll to the target highlight.
+      final scrollToId = widget.readerContext.scrollToHighlightId;
+      if (scrollToId != null) {
+        await bridge.scrollToHighlight(scrollToId);
+      }
+    }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -325,15 +423,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               resourceId: _resourceId!,
               readerContext: widget.readerContext,
               onBack: _isInTempMode ? _dismissTempChapter : null,
-              // Temp mode: override all state so the original chapter's
-              // bookmark/done don't bleed through.
               titleOverride: _isInTempMode ? (_tempChapterTitle ?? '') : null,
               bookmarkOverride: _isInTempMode ? false : null,
               doneOverride: _isInTempMode ? false : null,
               onBookmarkToggle: _isInTempMode ? _handleBookmarkToggle : null,
               onDoneToggle: _isInTempMode ? _handleDoneToggle : null,
-              // Passes the temp title to the chapter dropdown so it renders
-              // the phantom "currently viewing" entry at the top.
               tempChapterTitle:
                   _isInTempMode ? (_tempChapterTitle ?? '') : null,
             ),
@@ -351,6 +445,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 children: [
                   InAppWebView(
                     initialUrlRequest: URLRequest(url: WebUri(_chapterUrl!)),
+                    contextMenu: _contextMenu,
                     initialSettings: InAppWebViewSettings(
                       javaScriptEnabled: true,
                       supportZoom: false,
@@ -359,6 +454,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     ),
                     onWebViewCreated: (controller) {
                       _webViewController = controller;
+                      _jsBridge = JsBridge(controller);
+                      _highlightService = HighlightService(
+                        highlightsDao:
+                            ref.read(appDatabaseProvider).highlightsDao,
+                        jsBridge: _jsBridge!,
+                      );
                     },
                     shouldOverrideUrlLoading: (controller, action) async =>
                         await _handleNavigation(action),
