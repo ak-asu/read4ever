@@ -132,6 +132,31 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 10: Highlights screen — list, filter, bottom sheet, scroll-to-highlight
+
+**What was built:**
+- `lib/screens/highlights/widgets/highlight_list_item.dart` — `StatefulWidget` with `InkWell` for both `onTap` and `onDoubleTap`; local `_expanded` bool toggles `maxLines: null` vs `maxLines: 2`; left teal accent bar (3px wide `Container`) as a visual scan affordance; note preview if present (italic, textSecondary)
+- `lib/screens/highlights/widgets/highlight_bottom_sheet.dart` — inline note editing (toggles `_editingNote` state, no new route); "Open in reader" pops sheet then pushes with `ReaderContext(source: highlights, scrollToHighlightId: h.id)`; Delete calls `highlightsDao.deleteHighlight()` only (no JS bridge — correct, user is on the Highlights screen not in the reader; mark disappears on next chapter open)
+- `lib/screens/highlights/highlights_screen.dart` — replaced stub; `Column` with filter bar (shown only when highlights exist) + `Expanded` ListView; filter bar uses `FilterChip` widgets backed by `HighlightFilterNotifier`; chapter filter scoped to selected resource; two-level empty state (no highlights at all vs no highlights match filter)
+- `lib/screens/reader/widgets/reader_highlight_sheet.dart` — bonus widget: tapping an existing mark in the reader opens a sheet with prev/next navigation through all chapter highlights, inline note edit, and delete via `HighlightService.removeHighlight()` (calls both DB delete and JS DOM removal)
+- `lib/services/js_bridge.dart` / `lib/services/highlight_service.dart` — extended with `scrollToHighlight`, `updateHighlightNote`, `removeHighlight` methods (used by both reader highlight sheet and DOM cleanup)
+- `assets/js/highlight_restore.js` — extended with `__learnstack_scrollToHighlight`, `__learnstack_updateHighlightNote`, `__learnstack_removeHighlight` (unwraps mark element, keeping text, then normalizes surrounding text nodes)
+- `lib/screens/reader/reader_screen.dart` — scroll-to-highlight wired in `_onPageLoaded` after `injectScripts()` + `restoreForChapter()` — sequence matters: marks must exist in DOM before `scrollIntoView` is called
+
+**Design decisions:**
+- **Double-tap via InkWell (not GestureDetector)**: InkWell handles both tap + double-tap without tap delay on this device; kept simple
+- **Inline note editing in sheet**: Avoids pushing a new route for a short-form field; the highlight context stays visible
+- **No JS removal from Highlights screen delete**: The Highlights screen has no active WebView. Mark disappears naturally when the chapter is next opened (won't be in DB → won't restore). Correct behavior.
+- **`reader_highlight_sheet.dart` carries its own highlight list**: Sheet receives the full chapter list and manages its own index state, so prev/next cycling works without re-querying on each tap
+
+**Issues:** None. `flutter analyze` — no issues.
+
+**Verification:** Learner confirmed all flows working. Minor chapter navigation consistency issues noted and resolved during the session.
+
+**Comprehension check:** Asked what makes scroll-to-highlight work despite the mark not existing on navigation start. Answer: "scrollToHighlight runs after restore" — correct. Sequence in `_onPageLoaded`: inject → restore → scroll.
+
+---
+
 ### Step 9: Bookmarks screen — list, prev/next reader FABs
 
 **What was built:**
