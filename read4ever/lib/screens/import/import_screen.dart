@@ -8,8 +8,12 @@ import 'widgets/sitemap_chapter_list.dart';
 
 /// Route-based entry point for `/import`. Used by the Android share intent handler (step 14).
 /// Shows the import bottom sheet over a transparent scaffold and pops when the sheet closes.
+/// [initialUrl] pre-fills the URL field; when set via a share intent, discovery also starts
+/// automatically.
 class ImportScreen extends StatefulWidget {
-  const ImportScreen({super.key});
+  final String? initialUrl;
+
+  const ImportScreen({super.key, this.initialUrl});
 
   @override
   State<ImportScreen> createState() => _ImportScreenState();
@@ -21,7 +25,11 @@ class _ImportScreenState extends State<ImportScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      await showImportBottomSheet(context);
+      await showImportBottomSheet(
+        context,
+        initialUrl: widget.initialUrl,
+        autoDiscover: widget.initialUrl != null && widget.initialUrl!.isNotEmpty,
+      );
       if (mounted) Navigator.of(context).pop();
     });
   }
@@ -33,10 +41,13 @@ class _ImportScreenState extends State<ImportScreen> {
 }
 
 /// Call this from any widget to open the import bottom sheet.
+/// Set [autoDiscover] to true to kick off sitemap discovery immediately after
+/// the sheet appears (used when a URL arrives via the Android share intent).
 Future<void> showImportBottomSheet(
   BuildContext context, {
   String? initialUrl,
   List<String> excludeUrls = const [],
+  bool autoDiscover = false,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -48,6 +59,7 @@ Future<void> showImportBottomSheet(
     builder: (_) => ImportBottomSheet(
       initialUrl: initialUrl,
       excludeUrls: excludeUrls,
+      autoDiscover: autoDiscover,
     ),
   );
 }
@@ -59,10 +71,15 @@ class ImportBottomSheet extends ConsumerStatefulWidget {
   /// Chapter URLs already in an existing resource; excluded from discovery results.
   final List<String> excludeUrls;
 
+  /// When true, sitemap discovery starts automatically after the URL is set.
+  /// Used when a URL arrives via the Android share intent.
+  final bool autoDiscover;
+
   const ImportBottomSheet({
     super.key,
     this.initialUrl,
     this.excludeUrls = const [],
+    this.autoDiscover = false,
   });
 
   @override
@@ -80,9 +97,16 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
         widget.initialUrl ?? ref.read(importNotifierProvider).url;
     _urlController = TextEditingController(text: initialUrl);
     if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
-      // Sync pre-filled URL into provider state so _discover() picks it up.
+      // Sync pre-filled URL into provider state and optionally start discovery.
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         ref.read(importNotifierProvider.notifier).setUrl(widget.initialUrl!);
+        if (widget.autoDiscover) {
+          ref.read(importNotifierProvider.notifier).discover(
+                context,
+                excludeUrls: widget.excludeUrls,
+              );
+        }
       });
     }
   }

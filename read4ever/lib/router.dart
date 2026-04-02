@@ -64,7 +64,9 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/import',
-      builder: (context, state) => const ImportScreen(),
+      builder: (context, state) => ImportScreen(
+        initialUrl: state.extra as String?,
+      ),
     ),
   ],
 );
