@@ -469,7 +469,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (_chapterUrl == null ||
         _resourceId == null ||
         _effectiveChapterId == null) {
-      return const Scaffold(body: SizedBox.shrink());
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final readerState = ref.watch(readerNotifierProvider(_args));
@@ -492,9 +492,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               tempChapterTitle:
                   _isInTempMode ? (_tempChapterTitle ?? '') : null,
             ),
-            AnimatedOpacity(
-              opacity: readerState.isLoading ? 1.0 : 0.0,
+            AnimatedContainer(
               duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              constraints: BoxConstraints(
+                maxHeight: readerState.isLoading ? 2.0 : 0.0,
+              ),
               child: LinearProgressIndicator(
                 minHeight: 2,
                 color: AppColors.accent,
