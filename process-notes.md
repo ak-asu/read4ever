@@ -481,3 +481,13 @@ The `importNotifierProvider` is `autoDispose`. Setting the URL on it from the `I
 **Items created:** 3 (I1, I2, I3) — all UX/polish, no data model changes needed.
 
 **Learner approach:** Gave a broad "fix all" directive rather than naming specific items — comfortable delegating the audit. Less hands-on than during the structured build phase.
+
+### Step 15: Devpost submission
+
+**What was built:** Release APK compiled (`flutter build apk --release`, 59.5MB). GitHub Release created at `v1.0.0` with APK attached. Devpost submission completed with project name, tagline, description, built-with tags, 4 screenshots, GitHub repo link, and APK download link.
+
+**Verification:** Learner confirmed all steps complete — screenshots taken, GitHub release live, Devpost submission submitted.
+
+**Comprehension check:** "What mechanism does Read4ever use to store a highlight's position so it can be restored after a page reload?" → answered "XPath strings from DOM nodes." Correct.
+
+**Issues:** `gh` CLI not available in agent shell context — GitHub release creation delegated to learner via provided command. No other issues.
