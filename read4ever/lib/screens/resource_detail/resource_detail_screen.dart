@@ -89,8 +89,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
 
   Future<void> _deleteChapter(BuildContext context, Chapter chapter) async {
     final db = ref.read(appDatabaseProvider);
-    final highlightCount =
-        await db.highlightsDao.countByChapter(chapter.id);
+    final highlightCount = await db.highlightsDao.countByChapter(chapter.id);
     if (!context.mounted) return;
 
     final confirmed = await showDialog<bool>(
@@ -109,8 +108,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style:
-                TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
           ),
         ],
@@ -122,11 +120,9 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
     }
   }
 
-  Future<void> _deleteResource(
-      BuildContext context, Resource resource) async {
+  Future<void> _deleteResource(BuildContext context, Resource resource) async {
     final db = ref.read(appDatabaseProvider);
-    final highlightCount =
-        await db.highlightsDao.countByResource(_resourceId);
+    final highlightCount = await db.highlightsDao.countByResource(_resourceId);
     final bookmarkCount =
         await db.chaptersDao.countBookmarkedByResource(_resourceId);
     if (!context.mounted) return;
@@ -314,8 +310,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 20),
                             tooltip: 'Delete chapter',
-                            onPressed: () =>
-                                _deleteChapter(context, chapter),
+                            onPressed: () => _deleteChapter(context, chapter),
                           ),
                           ReorderableDragStartListener(
                             index: index,
@@ -333,8 +328,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
               // ── Import more chapters ──────────────────────────────────
               OutlinedButton.icon(
                 onPressed: () {
-                  final existingUrls =
-                      chapters.map((c) => c.url).toList();
+                  final existingUrls = chapters.map((c) => c.url).toList();
                   showImportBottomSheet(
                     context,
                     initialUrl: resource.url,

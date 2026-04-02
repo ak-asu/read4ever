@@ -53,7 +53,8 @@ class HighlightService {
   /// dashed-underline style to reflect the new note presence.
   Future<void> updateNote(int id, String? note) async {
     await highlightsDao.updateNote(id, note);
-    await jsBridge.updateHighlightNote(id, hasNote: note != null && note.isNotEmpty);
+    await jsBridge.updateHighlightNote(id,
+        hasNote: note != null && note.isNotEmpty);
   }
 
   /// Deletes the highlight from the database and removes its mark from the DOM.

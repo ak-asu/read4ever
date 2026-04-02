@@ -93,9 +93,7 @@ class _HighlightListItemState extends State<HighlightListItem> {
                           child: Padding(
                             padding: const EdgeInsets.only(left: 8),
                             child: Icon(
-                              _expanded
-                                  ? Icons.expand_less
-                                  : Icons.expand_more,
+                              _expanded ? Icons.expand_less : Icons.expand_more,
                               size: 16,
                               color: AppColors.textSecondary,
                             ),

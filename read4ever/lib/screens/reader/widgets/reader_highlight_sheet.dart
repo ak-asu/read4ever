@@ -136,14 +136,13 @@ class _ReaderHighlightSheetState extends ConsumerState<ReaderHighlightSheet> {
                 tooltip: 'Previous highlight',
               ),
               Text(
-                '${ _index + 1} of $total',
+                '${_index + 1} of $total',
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: AppColors.textSecondary),
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
-                onPressed:
-                    _index < total - 1 ? () => _goTo(_index + 1) : null,
+                onPressed: _index < total - 1 ? () => _goTo(_index + 1) : null,
                 tooltip: 'Next highlight',
               ),
             ],

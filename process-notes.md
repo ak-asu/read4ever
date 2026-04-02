@@ -132,6 +132,33 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 11: Resource Detail screen — inline editing, tags, chapter list, delete
+
+**What was built:**
+- `lib/models/resource_with_chapters.dart` — implemented stub as a real model (`Resource resource`, `List<Chapter> chapters`)
+- `lib/db/daos/resources_dao.dart` — implemented `watchById(int id)` as `(select(resources)..where(id.equals)).watchSingleOrNull()`; removed unused `ResourceWithChapters` import
+- `lib/db/daos/tags_dao.dart` — added `watchByResource(int resourceId)` using a type-safe join on `resource_tags` → returns ordered `List<Tag>` stream
+- `lib/providers/resources_provider.dart` — added `resourceStreamProvider(id)` and `resourceChaptersProvider(id)` as `StreamProvider.autoDispose.family`
+- `lib/providers/tags_provider.dart` — new file; `allTagsProvider` (all tags stream for autocomplete) and `tagsForResourceProvider(id)` (tags for a resource)
+- `lib/providers/import_provider.dart` — added `excludeUrls` parameter to `discover()` and `_runDiscovery()`; excluded URLs are filtered from discovered pages before state update
+- `lib/screens/import/import_screen.dart` — added `initialUrl`/`excludeUrls` to `ImportBottomSheet` constructor and `showImportBottomSheet()` helper; pre-fills URL on `initState`; passes `excludeUrls` to `notifier.discover()`
+- `lib/screens/resource_detail/widgets/tag_input.dart` — `Autocomplete<Tag>` field backed by `allTagsProvider` (prefix-filtered, excludes already-attached tags); Enter and comma create new tags via `TagsDao.addTagToResource`; existing tags displayed as deletable `InputChip` widgets above the field; `_CommaSplitter` TextInputFormatter intercepts comma → fires onCommit with the prefix text, clears field
+- `lib/screens/resource_detail/resource_detail_screen.dart` — replaced stub; `ConsumerStatefulWidget` with `FocusNode`-based auto-save for title and description (writes only when value changed); `ReorderableListView.builder` for chapters with done checkmarks, drag handles, per-item delete (confirm dialog shows highlight count); "Import more chapters" opens `showImportBottomSheet` with resource URL pre-filled and existing chapter URLs excluded; "Delete Resource" AlertDialog shows highlight + bookmark counts from DAO methods then calls `ResourcesDao.deleteById` (cascade-deletes chapters/highlights) + `context.pop()`
+
+**Design decisions:**
+- **Three separate providers instead of combined stream**: Combining `Resource`, `List<Chapter>`, `List<Tag>` streams cleanly requires rx_dart. Using three `StreamProvider.autoDispose.family` instances watched independently in the screen avoids the dependency with the same reactive behavior.
+- **Auto-save via FocusNode listeners**: Each editable field gets its own FocusNode. On blur, we compare against `_savedTitle`/`_savedDesc` (last-written values) to avoid spurious DB writes on every tap-away. Only writes when value actually changed.
+- **`excludeUrls` parameter on `discover()` — no freezed change**: Adding exclude logic as a runtime parameter to `discover()` avoids modifying `ImportState` (which would require a `build_runner` re-run). Clean and correct.
+- **`_CommaSplitter` TextInputFormatter**: Intercepts commas mid-input to fire the commit callback, keeping the text after the last comma in the field. Cleaner than `onChanged` polling.
+
+**Issues:** None. `flutter analyze` — no issues.
+
+**Verification:** Learner to run all 9 acceptance criteria flows listed above (title/desc persistence, tag add/remove/autocomplete, chapter reorder, chapter delete with highlight count, import more chapters, delete resource with counts).
+
+**Comprehension check:** Asked what happens before the tag chip appears after pressing Enter. Answer: "DB write → stream update → chip renders" — correct. Drift's reactive `watchByResource()` stream is the single source of truth; no local state needed.
+
+---
+
 ### Step 10: Highlights screen — list, filter, bottom sheet, scroll-to-highlight
 
 **What was built:**

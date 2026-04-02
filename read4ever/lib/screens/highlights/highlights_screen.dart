@@ -26,8 +26,7 @@ class HighlightsScreen extends ConsumerWidget {
               item.resource.id != filter.resourceId) {
             return false;
           }
-          if (filter.chapterId != null &&
-              item.chapter.id != filter.chapterId) {
+          if (filter.chapterId != null && item.chapter.id != filter.chapterId) {
             return false;
           }
           return true;
@@ -157,7 +156,8 @@ class HighlightsScreen extends ConsumerWidget {
                   : null,
               onTap: () {
                 notifier.setResource(e.key);
-                notifier.setChapter(null); // reset chapter when resource changes
+                notifier
+                    .setChapter(null); // reset chapter when resource changes
                 Navigator.of(ctx).pop();
               },
             ),

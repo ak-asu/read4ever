@@ -17,7 +17,9 @@ class TagsDao extends DatabaseAccessor<AppDatabase> with _$TagsDaoMixin {
     ])
       ..where(resourceTags.resourceId.equals(resourceId))
       ..orderBy([OrderingTerm.asc(tags.name)]);
-    return query.watch().map((rows) => rows.map((r) => r.readTable(tags)).toList());
+    return query
+        .watch()
+        .map((rows) => rows.map((r) => r.readTable(tags)).toList());
   }
 
   Stream<List<Tag>> watchByPrefix(String prefix) => (select(tags)
