@@ -11,12 +11,16 @@ class ReaderToolbar extends ConsumerWidget {
   final int chapterId;
   final int resourceId;
   final ReaderContext readerContext;
+  /// If non-null, overrides the default back behavior (context.pop()).
+  /// Used to return to the original chapter when in temp-chapter mode.
+  final VoidCallback? onBack;
 
   const ReaderToolbar({
     super.key,
     required this.chapterId,
     required this.resourceId,
     required this.readerContext,
+    this.onBack,
   });
 
   @override
@@ -33,7 +37,7 @@ class ReaderToolbar extends ConsumerWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.pop(),
+            onPressed: onBack ?? () => context.pop(),
             tooltip: 'Back',
           ),
           Expanded(

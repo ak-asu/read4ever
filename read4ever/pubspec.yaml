@@ -45,6 +45,9 @@ dependencies:
   # Share intent
   flutter_sharing_intent: ^2.0.0+5
 
+  # External URL launching
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
