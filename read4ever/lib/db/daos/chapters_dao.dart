@@ -76,6 +76,12 @@ class ChaptersDao extends DatabaseAccessor<AppDatabase>
     return row.read(count) ?? 0;
   }
 
+  Stream<Chapter> watchById(int id) =>
+      (select(chapters)..where((c) => c.id.equals(id))).watchSingle();
+
+  Future<Chapter> getById(int id) =>
+      (select(chapters)..where((c) => c.id.equals(id))).getSingle();
+
   // Used by duplicate detection in ImportNotifier (step 6)
   Future<Chapter?> findByUrl(String url) =>
       (select(chapters)..where((c) => c.url.equals(url))).getSingleOrNull();

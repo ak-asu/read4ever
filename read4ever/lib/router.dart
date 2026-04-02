@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+import 'providers/reader_provider.dart';
 import 'screens/library/library_screen.dart';
 import 'screens/bookmarks/bookmarks_screen.dart';
 import 'screens/highlights/highlights_screen.dart';
@@ -43,9 +44,24 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/reader/:chapterId',
-      builder: (context, state) => ReaderScreen(
-        chapterId: state.pathParameters['chapterId']!,
-      ),
+      // CustomTransitionPage with zero duration — seamless chapter-to-chapter
+      // navigation via pushReplacement in the chapter dropdown.
+      pageBuilder: (context, state) {
+        final chapterId =
+            int.parse(state.pathParameters['chapterId']!);
+        final readerContext =
+            (state.extra as ReaderContext?) ?? const ReaderContext();
+        return CustomTransitionPage(
+          key: state.pageKey,
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
+          transitionsBuilder: (_, __, ___, child) => child,
+          child: ReaderScreen(
+            chapterId: chapterId,
+            readerContext: readerContext,
+          ),
+        );
+      },
     ),
     GoRoute(
       path: '/import',
