@@ -112,6 +112,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       // _NoteSheet owns and disposes its TextEditingController via widget
       // lifecycle — avoids the use-after-dispose race that occurs when the
       // controller is created inline and disposed in whenComplete() while the
@@ -143,6 +144,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       builder: (ctx) => ReaderHighlightSheet(
         highlights: highlights,
         initialIndex: idx,
@@ -609,6 +611,11 @@ class _NoteSheetState extends State<_NoteSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(
+            'Add note',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
           TextField(
             controller: _controller,
             autofocus: true,

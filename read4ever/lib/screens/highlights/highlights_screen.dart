@@ -149,6 +149,7 @@ class HighlightsScreen extends ConsumerWidget {
   ) {
     showModalBottomSheet<void>(
       context: context,
+      showDragHandle: true,
       builder: (ctx) => ListView(
         shrinkWrap: true,
         children: [
@@ -180,6 +181,7 @@ class HighlightsScreen extends ConsumerWidget {
   ) {
     showModalBottomSheet<void>(
       context: context,
+      showDragHandle: true,
       builder: (ctx) => ListView(
         shrinkWrap: true,
         children: [
@@ -209,6 +211,7 @@ class HighlightsScreen extends ConsumerWidget {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       builder: (ctx) => HighlightBottomSheet(item: item),
     );
   }

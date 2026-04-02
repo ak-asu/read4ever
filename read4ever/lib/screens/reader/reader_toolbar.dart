@@ -128,6 +128,7 @@ class ReaderToolbar extends ConsumerWidget {
     final selectedId = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       builder: (_) => ChapterDropdownSheet(
         resourceId: resourceId,
         // In temp mode no existing chapter is "current".

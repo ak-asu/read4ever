@@ -104,6 +104,28 @@
   Acceptance: Sharing a URL from Chrome opens Read4ever with the URL pre-populated in the import dialog. Works on both warm open (app already running) and cold start (app not running). Sharing a URL that already exists as a chapter opens that chapter directly instead of re-importing.
   Verify: On Android device or emulator — open Chrome → navigate to a docs site → tap Share → select Read4ever → confirm import dialog opens with URL pre-filled and chapter list already loaded. Navigate away in Read4ever so the app is in the background → share another URL from Chrome → confirm import dialog opens correctly (warm open). Share a URL that was already imported → confirm it opens the existing resource directly. Fully kill Read4ever → share a URL from Chrome → confirm cold-start launches directly to import dialog.
 
+---
+
+## Iteration 1 — UX Polish
+
+- [x] **I1. Reader open jank — blank flash + progress bar layout shift**
+  Spec ref: New — not in original spec
+  What to build: (1) In `lib/screens/reader/reader_screen.dart`, replace the `SizedBox.shrink()` loading guard (lines 469-473) with a `Scaffold(body: Center(child: CircularProgressIndicator()))` so the reader shows a spinner instead of a blank white screen while `_init()` resolves. (2) Replace the `AnimatedOpacity` wrapping the `LinearProgressIndicator` with an `AnimatedContainer` that animates `maxHeight` between `0` and `2` (duration 200ms, curve `Curves.easeOut`) — this removes the permanent 2px layout gap that causes a toolbar-to-WebView jitter on every load start/stop.
+  Acceptance: Opening the reader shows a centered spinner until the WebView URL is ready. The 2px progress bar space collapses to zero when not loading — no layout shift between loading and loaded states.
+  Verify: Open any resource → tap Resume → confirm you see a brief spinner (not a white flash) before the WebView appears. Watch the toolbar/WebView boundary during a page load — the 2px gap should not appear when the loading bar is hidden.
+
+- [x] **I2. Highlights filter chips — tap to change, X to clear**
+  Spec ref: New — not in original spec
+  What to build: In `lib/screens/highlights/highlights_screen.dart`, fix both `FilterChip` widgets: (1) Remove the early-return "if currentId != null, clear" logic from `_showResourcePicker` and `_showChapterPicker` so tapping an already-selected chip always opens the picker (not clears it). (2) Replace the `avatar: Icon(Icons.close)` approach with `onDeleted: () { notifier.setResource(null); notifier.setChapter(null); }` (resource chip) and `onDeleted: () { notifier.setChapter(null); }` (chapter chip) — shown only when the chip is selected (`onDeleted` is null otherwise). Remove the `avatar` param entirely. This makes tap = change filter, X icon = clear filter, which is the standard Flutter chip interaction model.
+  Acceptance: Tapping the "All resources" chip when a resource is already selected opens the resource picker (not clears). Tapping the X on the chip clears it. Same for chapter chip.
+  Verify: Set a resource filter → tap the chip again → confirm the picker opens and you can switch to a different resource without clearing first. Tap the X icon → confirm filter clears. Repeat for chapter chip.
+
+- [x] **I3. Bottom sheet polish — drag handles + Note sheet header**
+  Spec ref: New — not in original spec
+  What to build: Add `showDragHandle: true` to every `showModalBottomSheet` call in the app (import_screen.dart, highlights_screen.dart `_showResourcePicker` + `_showChapterPicker` + `_showDetailSheet`, reader_screen.dart `_showNoteBottomSheet` + `_onMarkTapped`, reader_toolbar.dart `_showChapterDropdown`, bookmarks_screen.dart if any). For the Note bottom sheet (`_NoteSheet` in reader_screen.dart), add a `Text('Add note', style: titleSmall)` header above the TextField with `SizedBox(height: 8)` spacing — the sheet currently opens with no label, which feels ambiguous.
+  Acceptance: All bottom sheets show a drag handle pill at the top. The note bottom sheet shows "Add note" as a header above the text field.
+  Verify: Open every bottom sheet in the app (import, chapter dropdown, note, highlight detail, filter pickers) — all should display a visible drag handle. Open the note sheet from the reader context menu → confirm "Add note" header is visible above the text field.
+
 - [ ] **15. Devpost submission**
   Spec ref: `prd.md > What We're Building`
   What to build: Take 4 screenshots of the working app: (1) Library screen with at least 2 resources showing progress bars and the Continue Reading strip, (2) the import dialog showing the sitemap checkbox tree (the "smart chapter detection" moment), (3) the reader with at least one teal highlight visibly marked on real text, (4) the Highlights screen with multiple entries. Build the release APK: run `flutter build apk --release`. Create a GitHub Release on the existing repo: tag it `v1.0.0`, attach the release APK as a downloadable asset, write a short release description. Fill out the Devpost submission form: project name (Read4ever), tagline ("Turn scattered docs and guides into structured, trackable learning units"), description using the core story from `scope.md` and `prd.md`, built-with tags (Flutter, Drift, Riverpod, go_router, flutter_inappwebview), upload the 4 screenshots (lead with import dialog + reader-with-highlight as the wow moments), link the GitHub repo, link the APK release download. Optionally upload the `docs/` folder artifacts to show methodology depth.
