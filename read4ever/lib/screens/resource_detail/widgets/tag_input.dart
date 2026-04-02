@@ -24,8 +24,15 @@ class TagInput extends StatefulWidget {
 }
 
 class _TagInputState extends State<TagInput> {
-  // Captured from fieldViewBuilder so onSelected can re-focus the input.
+  // Captured from fieldViewBuilder so onSelected can clear + re-focus.
   FocusNode? _fieldFocusNode;
+  TextEditingController? _fieldController;
+
+  void _clearInputField() {
+    final controller = _fieldController;
+    if (controller == null) return;
+    controller.value = const TextEditingValue();
+  }
 
   void _submit(TextEditingController fieldController) {
     final text = fieldController.text.trim();
@@ -80,12 +87,17 @@ class _TagInputState extends State<TagInput> {
           displayStringForOption: (tag) => tag.name,
           onSelected: (tag) {
             widget.onAdd(tag.name);
+            _clearInputField();
+            // Clear the field text that Autocomplete fills in on selection.
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _fieldFocusNode?.requestFocus();
+              if (!mounted) return;
+              _clearInputField();
+              _fieldFocusNode?.requestFocus();
             });
           },
           fieldViewBuilder: (context, fieldController, fieldFocusNode, _) {
             _fieldFocusNode = fieldFocusNode;
+            _fieldController = fieldController;
             return TextField(
               controller: fieldController,
               focusNode: fieldFocusNode,

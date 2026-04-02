@@ -93,6 +93,20 @@ class AppTheme {
         listTileTheme: const ListTileThemeData(
           contentPadding: EdgeInsets.symmetric(horizontal: 16),
         ),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.textPrimary,
+          contentTextStyle: GoogleFonts.dmSans(
+            color: AppColors.background,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+          actionTextColor: AppColors.accentSubtle,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
       );
 
   static ThemeData get dark => ThemeData(
@@ -138,6 +152,20 @@ class AppTheme {
         ),
         listTileTheme: const ListTileThemeData(
           contentPadding: EdgeInsets.symmetric(horizontal: 16),
+        ),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.textPrimaryDark,
+          contentTextStyle: GoogleFonts.dmSans(
+            color: AppColors.backgroundDark,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+          actionTextColor: AppColors.accent,
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
         ),
       );
 }

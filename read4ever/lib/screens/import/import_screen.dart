@@ -46,11 +46,15 @@ class _ImportScreenState extends State<ImportScreen> {
 /// Call this from any widget to open the import bottom sheet.
 /// Set [autoDiscover] to true to kick off sitemap discovery immediately after
 /// the sheet appears (used when a URL arrives via the Android share intent).
+/// Set [addingToResourceId] when importing additional chapters into an existing
+/// resource — this skips duplicate-resource detection so the sheet doesn't close
+/// and redirect when the resource URL is scanned.
 Future<void> showImportBottomSheet(
   BuildContext context, {
   String? initialUrl,
   List<String> excludeUrls = const [],
   bool autoDiscover = false,
+  int? addingToResourceId,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -64,6 +68,7 @@ Future<void> showImportBottomSheet(
       initialUrl: initialUrl,
       excludeUrls: excludeUrls,
       autoDiscover: autoDiscover,
+      addingToResourceId: addingToResourceId,
     ),
   );
 }
@@ -79,11 +84,16 @@ class ImportBottomSheet extends ConsumerStatefulWidget {
   /// Used when a URL arrives via the Android share intent.
   final bool autoDiscover;
 
+  /// When non-null, duplicate-resource detection is skipped for this resource
+  /// so scanning its URL doesn't close the sheet and redirect.
+  final int? addingToResourceId;
+
   const ImportBottomSheet({
     super.key,
     this.initialUrl,
     this.excludeUrls = const [],
     this.autoDiscover = false,
+    this.addingToResourceId,
   });
 
   @override
@@ -109,6 +119,7 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
           ref.read(importNotifierProvider.notifier).discover(
                 context,
                 excludeUrls: widget.excludeUrls,
+                skipResourceId: widget.addingToResourceId,
               );
         }
       }
@@ -271,8 +282,11 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
 
   void _discover() {
     final notifier = ref.read(importNotifierProvider.notifier);
-    // Sync URL controller → state before discovery
     notifier.setUrl(_urlController.text);
-    notifier.discover(context, excludeUrls: widget.excludeUrls);
+    notifier.discover(
+      context,
+      excludeUrls: widget.excludeUrls,
+      skipResourceId: widget.addingToResourceId,
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,31 +25,41 @@ class ResourceDetailScreen extends ConsumerStatefulWidget {
 class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
   late int _resourceId;
 
-  // Editing controllers
   late TextEditingController _titleController;
   late TextEditingController _descController;
 
-  // Last-persisted values for dirty detection
+  // ValueNotifier drives AppBar rebuild only — not the whole screen.
+  final _dirtyNotifier = ValueNotifier<bool>(false);
+  final _savingNotifier = ValueNotifier<bool>(false);
+
   bool _initialized = false;
   String _savedTitle = '';
   String _savedDesc = '';
 
-  // ── Pending changes (not written to DB until Save) ──────────────────────
-  // Tags
+  // Pending changes
   final List<String> _pendingAddedTagNames = [];
   final Set<int> _pendingRemovedTagIds = {};
-
-  // Chapters
-  List<int>? _pendingChapterOrder; // null = no reorder pending
+  List<int>? _pendingChapterOrder;
   final Set<int> _pendingDeletedChapterIds = {};
+  List<int> _dbChapterOrderIds = const [];
+  DateTime _lastScrollInteractionAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   bool get _isDirty =>
       _titleController.text.trim() != _savedTitle ||
       _descController.text.trim() != _savedDesc ||
       _pendingAddedTagNames.isNotEmpty ||
       _pendingRemovedTagIds.isNotEmpty ||
-      _pendingChapterOrder != null ||
+      _hasPendingChapterOrderChanges ||
       _pendingDeletedChapterIds.isNotEmpty;
+
+  bool get _hasPendingChapterOrderChanges {
+    final pending = _pendingChapterOrder;
+    return pending != null && !listEquals(pending, _dbChapterOrderIds);
+  }
+
+  void _refreshDirty() {
+    _dirtyNotifier.value = _isDirty;
+  }
 
   @override
   void initState() {
@@ -56,42 +67,37 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
     _resourceId = int.parse(widget.id);
     _titleController = TextEditingController();
     _descController = TextEditingController();
-    // Rebuild on text change so Save button enables/disables live.
-    _titleController.addListener(_onTextChanged);
-    _descController.addListener(_onTextChanged);
+    _titleController.addListener(_refreshDirty);
+    _descController.addListener(_refreshDirty);
   }
 
   @override
   void dispose() {
-    _titleController.removeListener(_onTextChanged);
-    _descController.removeListener(_onTextChanged);
+    _titleController.removeListener(_refreshDirty);
+    _descController.removeListener(_refreshDirty);
     _titleController.dispose();
     _descController.dispose();
+    _dirtyNotifier.dispose();
+    _savingNotifier.dispose();
     super.dispose();
   }
 
-  void _onTextChanged() => setState(() {});
-
-  // ── Tag callbacks ─────────────────────────────────────────────────────────
+  // ── Tag callbacks ──────────────────────────────────────────────────────────
 
   void _onTagAdd(String name) {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return;
-
     final dbTags =
         ref.read(tagsForResourceProvider(_resourceId)).valueOrNull ?? [];
     final lowerName = trimmed.toLowerCase();
-
-    // If a DB tag with this name was marked for removal, just un-remove it.
     for (final tag in dbTags) {
       if (tag.name.toLowerCase() == lowerName &&
           _pendingRemovedTagIds.contains(tag.id)) {
         setState(() => _pendingRemovedTagIds.remove(tag.id));
+        _refreshDirty();
         return;
       }
     }
-
-    // Ignore if already present in the effective tag list.
     final existingNames = {
       ...dbTags
           .where((t) => !_pendingRemovedTagIds.contains(t.id))
@@ -99,31 +105,29 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
       ..._pendingAddedTagNames.map((n) => n.toLowerCase()),
     };
     if (existingNames.contains(lowerName)) return;
-
     setState(() => _pendingAddedTagNames.add(trimmed));
+    _refreshDirty();
   }
 
   void _onTagRemove(Tag tag) {
     if (tag.id < 0) {
-      // Negative id = a pending-add (not yet in DB); remove by list index.
       final index = -tag.id - 1;
       if (index >= 0 && index < _pendingAddedTagNames.length) {
         setState(() => _pendingAddedTagNames.removeAt(index));
+        _refreshDirty();
       }
     } else {
       setState(() => _pendingRemovedTagIds.add(tag.id));
+      _refreshDirty();
     }
   }
 
-  // ── Chapter helpers ───────────────────────────────────────────────────────
+  // ── Chapter helpers ────────────────────────────────────────────────────────
 
   List<Chapter> _computeDisplayChapters(List<Chapter> dbChapters) {
-    // Hide chapters that are pending deletion.
     final filtered = dbChapters
         .where((c) => !_pendingDeletedChapterIds.contains(c.id))
         .toList();
-
-    // Apply pending reorder if any.
     if (_pendingChapterOrder != null) {
       final orderMap = {
         for (int i = 0; i < _pendingChapterOrder!.length; i++)
@@ -135,64 +139,72 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
         return ai.compareTo(bi);
       });
     }
-
     return filtered;
   }
 
-  // ── Save / Discard ────────────────────────────────────────────────────────
+  // ── Save / Discard ─────────────────────────────────────────────────────────
 
   Future<void> _saveAll() async {
-    final db = ref.read(appDatabaseProvider);
+    if (_savingNotifier.value) return;
+    _savingNotifier.value = true;
+    try {
+      final db = ref.read(appDatabaseProvider);
 
-    final newTitle = _titleController.text.trim();
-    if (newTitle.isNotEmpty && newTitle != _savedTitle) {
-      await db.resourcesDao.updateResource(
-        ResourcesCompanion(id: Value(_resourceId), title: Value(newTitle)),
-      );
-      _savedTitle = newTitle;
-    }
+      final newTitle = _titleController.text.trim();
+      // Always sync _savedTitle so dirty check is correct after save.
+      if (newTitle.isNotEmpty) {
+        if (newTitle != _savedTitle) {
+          await db.resourcesDao.updateResource(
+            ResourcesCompanion(id: Value(_resourceId), title: Value(newTitle)),
+          );
+        }
+        _savedTitle = newTitle;
+      }
 
-    final newDesc = _descController.text.trim();
-    if (newDesc != _savedDesc) {
-      await db.resourcesDao.updateResource(
-        ResourcesCompanion(
-          id: Value(_resourceId),
-          description: Value(newDesc.isEmpty ? null : newDesc),
-        ),
-      );
+      final newDesc = _descController.text.trim();
+      if (newDesc != _savedDesc) {
+        await db.resourcesDao.updateResource(
+          ResourcesCompanion(
+            id: Value(_resourceId),
+            description: Value(newDesc.isEmpty ? null : newDesc),
+          ),
+        );
+      }
       _savedDesc = newDesc;
-    }
 
-    for (final name in List<String>.from(_pendingAddedTagNames)) {
-      await db.tagsDao.addTagToResource(_resourceId, name);
-    }
-    for (final tagId in Set<int>.from(_pendingRemovedTagIds)) {
-      await db.tagsDao.removeTagFromResource(_resourceId, tagId);
-    }
+      for (final name in List<String>.from(_pendingAddedTagNames)) {
+        await db.tagsDao.addTagToResource(_resourceId, name);
+      }
+      for (final tagId in Set<int>.from(_pendingRemovedTagIds)) {
+        await db.tagsDao.removeTagFromResource(_resourceId, tagId);
+      }
 
-    // Reorder only IDs that aren't also being deleted.
-    final orderToPersist = _pendingChapterOrder
-        ?.where((id) => !_pendingDeletedChapterIds.contains(id))
-        .toList();
-    if (orderToPersist != null && orderToPersist.isNotEmpty) {
-      await db.chaptersDao.reorder(orderToPersist);
+      final orderToPersist = _hasPendingChapterOrderChanges
+          ? _pendingChapterOrder
+              ?.where((id) => !_pendingDeletedChapterIds.contains(id))
+              .toList()
+          : null;
+      if (orderToPersist != null && orderToPersist.isNotEmpty) {
+        await db.chaptersDao.reorder(orderToPersist);
+      }
+
+      if (_pendingDeletedChapterIds.isNotEmpty) {
+        await db.chaptersDao.bulkDelete(_pendingDeletedChapterIds.toList());
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _pendingAddedTagNames.clear();
+        _pendingRemovedTagIds.clear();
+        _pendingChapterOrder = null;
+        _pendingDeletedChapterIds.clear();
+      });
+      _dirtyNotifier.value = false;
+
+      _showSnackBar('Saved');
+    } finally {
+      if (mounted) _savingNotifier.value = false;
     }
-
-    if (_pendingDeletedChapterIds.isNotEmpty) {
-      await db.chaptersDao.bulkDelete(_pendingDeletedChapterIds.toList());
-    }
-
-    if (!mounted) return;
-    setState(() {
-      _pendingAddedTagNames.clear();
-      _pendingRemovedTagIds.clear();
-      _pendingChapterOrder = null;
-      _pendingDeletedChapterIds.clear();
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Saved')),
-    );
   }
 
   Future<void> _showDiscardDialog() async {
@@ -217,7 +229,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
     if (shouldDiscard == true && mounted) context.pop();
   }
 
-  // ── Chapter delete helpers ────────────────────────────────────────────────
+  // ── Chapter delete helpers ─────────────────────────────────────────────────
 
   Future<void> _deleteChapter(BuildContext context, Chapter chapter) async {
     final db = ref.read(appDatabaseProvider);
@@ -230,7 +242,8 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
         title: const Text('Delete chapter?'),
         content: highlightCount > 0
             ? Text(
-                'This will also delete $highlightCount highlight${highlightCount == 1 ? '' : 's'} in this chapter.',
+                'This will also delete $highlightCount '
+                'highlight${highlightCount == 1 ? '' : 's'} in this chapter.',
               )
             : const Text('This chapter will be removed from the resource.'),
         actions: [
@@ -252,6 +265,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
         _pendingDeletedChapterIds.add(chapter.id);
         _pendingChapterOrder?.remove(chapter.id);
       });
+      _refreshDirty();
     }
   }
 
@@ -287,6 +301,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
           _pendingChapterOrder?.remove(id);
         }
       });
+      _refreshDirty();
       ref.read(resourceDetailMultiSelectProvider.notifier).clear();
     }
   }
@@ -327,6 +342,19 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
     }
   }
 
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
   @override
   Widget build(BuildContext context) {
     final resourceAsync = ref.watch(resourceStreamProvider(_resourceId));
@@ -357,7 +385,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
           );
         }
 
-        // One-time init from DB on first data load.
+        // One-time init from DB.
         if (!_initialized) {
           _initialized = true;
           _savedTitle = resource.title;
@@ -367,10 +395,13 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
         }
 
         final dbChapters = chaptersAsync.valueOrNull ?? [];
+        _dbChapterOrderIds = dbChapters
+            .where((c) => !_pendingDeletedChapterIds.contains(c.id))
+            .map((c) => c.id)
+            .toList(growable: false);
         final displayChapters = _computeDisplayChapters(dbChapters);
         final chapterIds = displayChapters.map((c) => c.id).toList();
 
-        // Effective tags = DB tags minus pending removes, plus pending adds.
         final dbTags = tagsAsync.valueOrNull ?? [];
         final allTags = allTagsAsync.valueOrNull ?? [];
         final effectiveTags = [
@@ -380,8 +411,8 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
               )),
         ];
 
-        // ── AppBar ────────────────────────────────────────────────────────
-        final AppBar appBar = isMultiSelect
+        // AppBar uses ValueListenableBuilder so only it rebuilds on dirty/saving change.
+        final appBar = isMultiSelect
             ? AppBar(
                 leading: IconButton(
                   icon: const Icon(Icons.close),
@@ -410,10 +441,28 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
             : AppBar(
                 title: const Text('Resource'),
                 actions: [
-                  IconButton(
-                    icon: const Icon(Icons.save_outlined),
-                    tooltip: 'Save',
-                    onPressed: _isDirty ? _saveAll : null,
+                  ValueListenableBuilder<bool>(
+                    valueListenable: _savingNotifier,
+                    builder: (_, isSaving, __) {
+                      if (isSaving) {
+                        return const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      }
+                      return ValueListenableBuilder<bool>(
+                        valueListenable: _dirtyNotifier,
+                        builder: (_, isDirty, __) => IconButton(
+                          icon: const Icon(Icons.save_outlined),
+                          tooltip: 'Save',
+                          onPressed: isDirty ? _saveAll : null,
+                        ),
+                      );
+                    },
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline),
@@ -427,6 +476,10 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
           canPop: !isMultiSelect && !_isDirty,
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) return;
+            if (_savingNotifier.value) {
+              _showSnackBar('Please wait, saving changes...');
+              return;
+            }
             if (isMultiSelect) {
               selectNotifier.clear();
               return;
@@ -435,10 +488,73 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
           },
           child: Scaffold(
             appBar: appBar,
-            body: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // ── Editable title (bottom border only) ───────────────────
+            body: ValueListenableBuilder<bool>(
+              valueListenable: _savingNotifier,
+              builder: (context, isSaving, _) => Stack(
+                children: [
+                  IgnorePointer(
+                    ignoring: isSaving,
+                    child: _buildBody(
+                      context,
+                      resource,
+                      displayChapters,
+                      effectiveTags,
+                      allTags,
+                      selected,
+                      selectNotifier,
+                      chapterIds,
+                      secondaryColor,
+                      isMultiSelect,
+                      dbChapters,
+                    ),
+                  ),
+                  if (isSaving)
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    Resource resource,
+    List<Chapter> displayChapters,
+    List<Tag> effectiveTags,
+    List<Tag> allTags,
+    Set<int> selected,
+    MultiSelectNotifier selectNotifier,
+    List<int> chapterIds,
+    Color secondaryColor,
+    bool isMultiSelect,
+    List<Chapter> dbChapters,
+  ) {
+    // Header slivers (title, desc, tags) + chapter sliver in one scroll view
+    // so the whole page scrolls together without nested scroll jank.
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollStartNotification ||
+            notification is ScrollUpdateNotification ||
+            notification is UserScrollNotification) {
+          _lastScrollInteractionAt = DateTime.now();
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // ── Editable title ──────────────────────────────────────
                 TextField(
                   controller: _titleController,
                   style: Theme.of(context).textTheme.titleLarge,
@@ -451,7 +567,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                // ── Editable description (bottom border, max 5 lines) ──────
+                // ── Editable description ────────────────────────────────
                 TextField(
                   controller: _descController,
                   style: Theme.of(context)
@@ -467,10 +583,9 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                   maxLines: 5,
                   minLines: 1,
                 ),
+                const SizedBox(height: 8),
 
-                const Divider(height: 32),
-
-                // ── Tags ──────────────────────────────────────────────────
+                // ── Tags ────────────────────────────────────────────────
                 Text(
                   'Tags',
                   style: Theme.of(context)
@@ -488,7 +603,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
 
                 const Divider(height: 32),
 
-                // ── Chapters ──────────────────────────────────────────────
+                // ── Chapters header ─────────────────────────────────────
                 Text(
                   'Chapters',
                   style: Theme.of(context)
@@ -506,17 +621,123 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                       style: TextStyle(color: secondaryColor),
                     ),
                   ),
+              ]),
+            ),
+          ),
 
-                if (displayChapters.isNotEmpty)
-                  isMultiSelect
-                      ? _buildMultiSelectChapterList(
-                          context, displayChapters, selected, selectNotifier)
-                      : _buildReorderableChapterList(
-                          context, displayChapters, secondaryColor),
+          // ── Chapter list sliver ────────────────────────────────────────
+          if (displayChapters.isNotEmpty)
+            isMultiSelect
+                ? SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final chapter = displayChapters[index];
+                          final isSelected = selected.contains(chapter.id);
+                          return Material(
+                            color: isSelected
+                                ? AppColors.accentSubtle.withValues(alpha: 0.4)
+                                : Colors.transparent,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Checkbox(
+                                value: isSelected,
+                                onChanged: (_) =>
+                                    selectNotifier.toggle(chapter.id),
+                                activeColor: AppColors.accent,
+                              ),
+                              title: Text(chapter.title),
+                              onTap: () => selectNotifier.toggle(chapter.id),
+                            ),
+                          );
+                        },
+                        childCount: displayChapters.length,
+                      ),
+                    ),
+                  )
+                : SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverReorderableList(
+                      itemCount: displayChapters.length,
+                      onReorder: (oldIndex, newIndex) {
+                        if (newIndex > oldIndex) newIndex -= 1;
+                        if (oldIndex == newIndex) return;
 
-                const SizedBox(height: 8),
+                        final reordered = List<Chapter>.from(displayChapters);
+                        final item = reordered.removeAt(oldIndex);
+                        reordered.insert(newIndex, item);
+                        final reorderedIds =
+                            reordered.map((c) => c.id).toList();
 
-                // ── Import more chapters ──────────────────────────────────
+                        setState(() {
+                          _pendingChapterOrder = listEquals(
+                            reorderedIds,
+                            _dbChapterOrderIds,
+                          )
+                              ? null
+                              : reorderedIds;
+                        });
+                        _refreshDirty();
+                      },
+                      itemBuilder: (context, index) {
+                        final chapter = displayChapters[index];
+                        return Material(
+                          key: ValueKey(chapter.id),
+                          color: Colors.transparent,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: chapter.isDone
+                                ? const Icon(Icons.check_circle,
+                                    color: AppColors.accent)
+                                : const Icon(Icons.radio_button_unchecked,
+                                    color: AppColors.accent),
+                            title: Text(
+                              chapter.title,
+                              style: chapter.isDone
+                                  ? TextStyle(
+                                      color: secondaryColor,
+                                      decoration: TextDecoration.lineThrough,
+                                    )
+                                  : null,
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline,
+                                      size: 20),
+                                  tooltip: 'Delete chapter',
+                                  onPressed: () =>
+                                      _deleteChapter(context, chapter),
+                                ),
+                                ReorderableDelayedDragStartListener(
+                                  index: index,
+                                  child: const Icon(Icons.drag_handle),
+                                ),
+                              ],
+                            ),
+                            onTap: () {
+                              final justScrolled = DateTime.now().difference(
+                                    _lastScrollInteractionAt,
+                                  ) <
+                                  const Duration(milliseconds: 180);
+                              if (justScrolled) return;
+                              context.push('/reader/${chapter.id}');
+                            },
+                            onLongPress: () =>
+                                selectNotifier.toggle(chapter.id),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+          // ── Import more + bottom padding ───────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
                 if (!isMultiSelect)
                   OutlinedButton.icon(
                     onPressed: () {
@@ -526,106 +747,17 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                         context,
                         initialUrl: resource.url,
                         excludeUrls: existingUrls,
+                        addingToResourceId: _resourceId,
                       );
                     },
                     icon: const Icon(Icons.add),
                     label: const Text('Import more chapters'),
                   ),
-                const SizedBox(height: 24),
-              ],
+              ]),
             ),
           ),
-        );
-      },
-    );
-  }
-
-  // ── Chapter list: multi-select mode ──────────────────────────────────────
-
-  Widget _buildMultiSelectChapterList(
-    BuildContext context,
-    List<Chapter> chapters,
-    Set<int> selected,
-    MultiSelectNotifier notifier,
-  ) {
-    return Column(
-      children: chapters.map((chapter) {
-        final isSelected = selected.contains(chapter.id);
-        return Material(
-          color: isSelected
-              ? AppColors.accentSubtle.withValues(alpha: 0.4)
-              : Colors.transparent,
-          child: ListTile(
-            leading: Checkbox(
-              value: isSelected,
-              onChanged: (_) => notifier.toggle(chapter.id),
-              activeColor: AppColors.accent,
-            ),
-            title: Text(chapter.title),
-            onTap: () => notifier.toggle(chapter.id),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // ── Chapter list: normal mode (reorderable, deferred) ────────────────────
-
-  Widget _buildReorderableChapterList(
-    BuildContext context,
-    List<Chapter> chapters,
-    Color secondaryColor,
-  ) {
-    final selectNotifier = ref.read(resourceDetailMultiSelectProvider.notifier);
-
-    return ReorderableListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: chapters.length,
-      onReorder: (oldIndex, newIndex) {
-        if (newIndex > oldIndex) newIndex -= 1;
-        final reordered = List<Chapter>.from(chapters);
-        final item = reordered.removeAt(oldIndex);
-        reordered.insert(newIndex, item);
-        setState(() {
-          _pendingChapterOrder = reordered.map((c) => c.id).toList();
-        });
-      },
-      itemBuilder: (context, index) {
-        final chapter = chapters[index];
-        return ListTile(
-          key: ValueKey(chapter.id),
-          leading: chapter.isDone
-              ? const Icon(Icons.check_circle, color: AppColors.accent)
-              : const Icon(Icons.radio_button_unchecked,
-                  color: AppColors.accent),
-          title: Text(
-            chapter.title,
-            style: chapter.isDone
-                ? TextStyle(
-                    color: secondaryColor,
-                    decoration: TextDecoration.lineThrough,
-                  )
-                : null,
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 20),
-                tooltip: 'Delete chapter',
-                onPressed: () => _deleteChapter(context, chapter),
-              ),
-              ReorderableDragStartListener(
-                index: index,
-                child: const Icon(Icons.drag_handle),
-              ),
-            ],
-          ),
-          onTap: () => context.push('/reader/${chapter.id}'),
-          onLongPress: () => selectNotifier.toggle(chapter.id),
-        );
-      },
+        ],
+      ),
     );
   }
 }

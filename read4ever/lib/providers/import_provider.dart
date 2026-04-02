@@ -88,8 +88,13 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
   ///
   /// [excludeUrls] — chapter URLs already in an existing resource; filtered out
   /// from the discovered pages so the user only sees new chapters.
-  Future<void> discover(BuildContext context,
-      {List<String> excludeUrls = const []}) async {
+  /// [skipResourceId] — when set, skips duplicate-resource detection for that
+  /// resource ID (used when adding chapters to an existing resource).
+  Future<void> discover(
+    BuildContext context, {
+    List<String> excludeUrls = const [],
+    int? skipResourceId,
+  }) async {
     final url = state.url.trim();
 
     if (!SitemapService().isValidUrl(url)) {
@@ -105,35 +110,61 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
     final db = ref.read(appDatabaseProvider);
 
     // --- Duplicate detection ---
-    final existingChapter = await db.chaptersDao.findByUrl(url);
-    if (existingChapter != null) {
-      if (context.mounted) {
-        context.pop();
-        context.push('/resource/${existingChapter.resourceId}');
+    // Skip chapter-URL check when we are adding to an existing resource, since
+    // the scanned URL may already exist as a chapter in that very resource.
+    if (skipResourceId == null) {
+      final existingChapter = await db.chaptersDao.findByUrl(url);
+      if (existingChapter != null) {
+        state = state.copyWith(
+          status: ImportStatus.error,
+          allPages: const [],
+          deselectedUrls: const [],
+          errorMessage: 'This URL already exists in your library.',
+        );
+        if (context.mounted) {
+          _showExistingResourceSnack(
+            context,
+            existingChapter.resourceId,
+            'This URL is already imported.',
+          );
+        }
+        return;
       }
-      return;
-    }
 
-    final existingResource = await db.resourcesDao.findByUrl(url);
-    if (existingResource != null) {
-      if (context.mounted) {
-        context.pop();
-        context.push('/resource/${existingResource.id}');
+      final existingResource = await db.resourcesDao.findByUrl(url);
+      // Only redirect if it's a different resource than the one we're adding to.
+      if (existingResource != null && existingResource.id != skipResourceId) {
+        state = state.copyWith(
+          status: ImportStatus.error,
+          allPages: const [],
+          deselectedUrls: const [],
+          errorMessage: 'This resource already exists in your library.',
+        );
+        if (context.mounted) {
+          _showExistingResourceSnack(
+            context,
+            existingResource.id,
+            'This resource is already in your library.',
+          );
+        }
+        return;
       }
-      return;
     }
 
     // --- Sitemap discovery ---
     // _runDiscovery returns true when the single-page fallback was used.
     final isFallback = await _runDiscovery(url, excludeUrls: excludeUrls);
     if (isFallback && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Couldn't detect other chapters — importing as a single resource",
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Couldn't detect other chapters — importing as a single resource",
+            ),
+            behavior: SnackBarBehavior.floating,
           ),
-        ),
-      );
+        );
     }
   }
 
@@ -143,13 +174,16 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
     state = state.copyWith(status: ImportStatus.loading, errorMessage: null);
     final isFallback = await _runDiscovery(url);
     if (isFallback && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Couldn't detect other chapters — importing as a single resource",
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Couldn't detect other chapters — importing as a single resource",
+            ),
+            behavior: SnackBarBehavior.floating,
           ),
-        ),
-      );
+        );
     }
   }
 
@@ -159,22 +193,24 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
       {List<String> excludeUrls = const []}) async {
     final rawPages =
         await SitemapService().discover(url, maxDepth: state.maxDepth);
-    final pages = excludeUrls.isEmpty
-        ? rawPages
-        : rawPages?.where((p) => !excludeUrls.contains(p.url)).toList();
 
-    if (pages == null || pages.isEmpty) {
-      final title = _titleFromUrl(url);
-      final singlePage = SitemapPage(url: url, title: title);
-      state = state.copyWith(
-        status: ImportStatus.ready,
-        allPages: [singlePage],
-        deselectedUrls: [],
-        resourceName: state.resourceName.isEmpty ? title : state.resourceName,
-      );
-      return true; // single-page fallback
-    } else {
-      final derivedName = pages.isNotEmpty ? pages.first.title : '';
+    if (rawPages != null && rawPages.isNotEmpty) {
+      final pages = excludeUrls.isEmpty
+          ? rawPages
+          : rawPages.where((p) => !excludeUrls.contains(p.url)).toList();
+
+      if (pages.isEmpty) {
+        state = state.copyWith(
+          status: ImportStatus.error,
+          allPages: const [],
+          deselectedUrls: const [],
+          errorMessage:
+              'No new chapters found. All discovered chapters are already imported.',
+        );
+        return false;
+      }
+
+      final derivedName = pages.first.title;
       state = state.copyWith(
         status: ImportStatus.ready,
         allPages: pages,
@@ -184,6 +220,52 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
       );
       return false;
     }
+
+    final isExcludedSingleUrl = excludeUrls.contains(url);
+    if (isExcludedSingleUrl) {
+      state = state.copyWith(
+        status: ImportStatus.error,
+        allPages: const [],
+        deselectedUrls: const [],
+        errorMessage:
+            'No new chapters found for this URL. It is already in this resource.',
+      );
+      return false;
+    }
+
+    {
+      final title = _titleFromUrl(url);
+      final singlePage = SitemapPage(url: url, title: title);
+      state = state.copyWith(
+        status: ImportStatus.ready,
+        allPages: [singlePage],
+        deselectedUrls: [],
+        resourceName: state.resourceName.isEmpty ? title : state.resourceName,
+      );
+      return true; // single-page fallback
+    }
+  }
+
+  void _showExistingResourceSnack(
+    BuildContext context,
+    int resourceId,
+    String message,
+  ) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          action: SnackBarAction(
+            label: 'Open',
+            onPressed: () {
+              if (!context.mounted) return;
+              context.pop();
+              context.push('/resource/$resourceId');
+            },
+          ),
+        ),
+      );
   }
 
   /// Writes the resource + selected chapters to the DB, then navigates to the reader.
