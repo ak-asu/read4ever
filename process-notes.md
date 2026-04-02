@@ -132,6 +132,50 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 7 (continued): Post-build fixes and additions
+
+**Issues encountered and resolved after initial build:**
+- Error overlay not covering WebView: `Container` in a `Stack` without positioning only wraps its children. Fixed with `Positioned.fill`.
+- `onLoadStop` fires after Android's native error page loads, clobbering the chapter title with "Webpage not available" and clearing the error overlay. Fixed with `_lastLoadHadError` flag: set in `onReceivedError`, cleared in `onLoadStart`, checked in `_onPageLoaded` to skip title update and keep overlay.
+- Retry flash: `onLoadStart` was clearing `_showErrorState` immediately, exposing the native error page while the retry request was in-flight. Fixed by not clearing the overlay in `onLoadStart` — it stays visible until `_onPageLoaded` succeeds.
+- `shouldOverrideUrlLoading` infinite loop: with `useShouldOverrideUrlLoading: true`, the callback fires for the initial load AND for HTTP redirects. A redirect URL (e.g. `drift.simonbinder.eu` → `drift.simonbinder.eu/docs/`) didn't match `_chapterUrl` exactly, fell through to `findByUrl`, found the same chapter after normalization, and fired `pushReplacement` to itself — creating a new screen on every redirect. Fixed with normalized URL comparison and `existing.id == _effectiveChapterId` guard.
+- Anchor links returned `CANCEL` which blocked the WebView's native scroll behavior. Fixed to return `ALLOW`.
+
+**Feature added (user request): in-WebView link handling**
+- `shouldOverrideUrlLoading` intercepts all link clicks
+- Existing chapter match → `pushReplacement` to that chapter
+- New HTTP/S URL → temp chapter mode: WebView loads the URL, banner appears ("isn't in your library — Dismiss / Add")
+- Non-HTTP/S URL → external browser dialog
+- `_effectiveChapterId` tracks current chapter independently — starts as `widget.chapterId`, updates to new chapter ID when temp is added in-place
+- `_addTempChapterInPlace()`: inserts chapter to DB, updates `_effectiveChapterId` and toolbar in-place (no `pushReplacement`) — WebView keeps showing the same page without reloading
+- Toolbar: `titleOverride` shows temp page title, `bookmarkOverride`/`doneOverride` suppress original chapter state, `onBookmarkToggle`/`onDoneToggle` callbacks auto-add before acting
+- Chapter dropdown: phantom "currently viewing" entry (`tempChapterTitle`) shown at top with explore icon when in temp mode; no existing chapter highlighted
+- Banner styled to app design system: `colorScheme.surface` background, 1.5px teal top border, `textSecondary` message, `AppColors.accent` buttons
+
+**Comprehension check:** Asked why `_addTempChapterInPlace` doesn't call `pushReplacement`. Learner answered "to avoid shouldOverrideUrlLoading re-trigger" — close (that's a real consequence) but the primary reason is that the WebView is already on the correct page; pushReplacement would dispose and recreate the InAppWebView, reloading from scratch. Learner accepted the correction without pushback.
+
+### Step 7: Reader — WebView, toolbar, chapter navigation, error state
+
+**What was built:**
+- `lib/providers/reader_provider.dart` — `ReaderSource` enum, `ReaderContext` (freezed: source, adjacentChapterIds, scrollToHighlightId), `ReaderState` (freezed: chapterId, isLoading, context), `ReaderNotifier` (AutoDisposeFamilyNotifier keyed by `(int chapterId, ReaderContext)`), `chapterStreamProvider` (watches single chapter — toolbar uses this for reactive title/bookmark/done), `resourceChaptersProvider` (watches all chapters for a resource — chapter dropdown uses this)
+- `lib/db/daos/chapters_dao.dart` — added `watchById(int id)` (stream of single chapter) and `getById(int id)` (Future, used in reader's initState to get URL + resourceId)
+- `lib/screens/reader/reader_screen.dart` — ConsumerStatefulWidget; `_init()` async-fetches chapter on mount to get URL + resourceId, then calls `updateLastOpened`; Column layout: ReaderToolbar (56px) + AnimatedOpacity LinearProgressIndicator (2px) + Expanded Stack (InAppWebView + ReaderErrorState overlay); `onLoadStart` → setLoading(true); `onLoadStop` → `_onPageLoaded` (setLoading false + updateTitle from page title); `onReceivedError` → show error overlay; placeholder comment for step 8's script injection
+- `lib/screens/reader/reader_toolbar.dart` — ConsumerWidget; watches `chapterStreamProvider(chapterId)` for reactive title/bookmark/done state; back button (context.pop), title/dropdown trigger, bookmark toggle (teal fill), done toggle (teal fill); chapter dropdown shown as `showModalBottomSheet` returning selected ID, then `context.pushReplacement` with `ReaderContext(source: readerContext.source)`
+- `lib/screens/reader/widgets/chapter_dropdown_sheet.dart` — ConsumerWidget; DraggableScrollableSheet; watches `resourceChaptersProvider(resourceId)`; current chapter non-tappable; done chapters get teal ✓ trailing icon; calls `onChapterSelected` callback (pops sheet via Navigator.of(context).pop(id))
+- `lib/screens/reader/widgets/reader_error_state.dart` — full-width overlay container with wifi_off icon, "Couldn't load this page" text, Retry button (webViewController.reload())
+- `lib/router.dart` — reader route converted from `builder` to `pageBuilder` returning `CustomTransitionPage(transitionDuration: Duration.zero)` — all reader navigations are instant; `state.extra as ReaderContext?` with const ReaderContext() default
+
+**Design decisions:**
+- `ReaderNotifier` uses `AutoDisposeFamilyNotifier<ReaderState, (int, ReaderContext)>` (Dart 3 record as family key) — manual Riverpod, no codegen needed beyond freezed for state classes
+- `_init()` in `initState` fetches chapter data async before showing WebView — avoids rebuilding InAppWebView when chapter stream emits title updates later (which would reload the page)
+- Toolbar passes `onChapterSelected` callback to dropdown sheet and handles navigation from the outer context — avoids the go_router context issue inside modal bottom sheet
+- `AnimatedOpacity` on LinearProgressIndicator (vs Visibility) — smoother load/done transition, widget stays in layout so there's no height jump
+- `CustomTransitionPage` applies to all reader navigations (initial push from Library + chapter-to-chapter pushReplacement) — acceptable since the LinearProgressIndicator provides visual loading feedback
+
+**Issues:** Two unused imports after initial write (chapters.dart table import in reader_provider.dart, flutter/material.dart in router.dart since CustomTransitionPage comes from go_router). Fixed immediately. `flutter analyze` — no issues.
+
+**Verification:** Learner to run app, import a multi-chapter docs site, tap Resume → confirm page loads with toolbar visible. Mark chapter done → reopen dropdown → confirm checkmark. Bookmark → icon fills teal. Switch chapters via dropdown → confirm zero-duration transition. Disable network → reload → confirm error overlay → re-enable + Retry → page loads.
+
 ### Step 6: ImportScreen — dialog, state, DB write, navigation
 
 **What was built:**

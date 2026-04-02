@@ -30,9 +30,7 @@ class SitemapChapterList extends ConsumerWidget {
           activeColor: AppColors.accent,
           // Standalone mode: lock the only checkbox — can't deselect it
           value: isStandalone ? true : isSelected,
-          onChanged: isStandalone
-              ? null
-              : (_) => notifier.togglePage(page),
+          onChanged: isStandalone ? null : (_) => notifier.togglePage(page),
           title: Text(
             page.title,
             style: Theme.of(context).textTheme.bodyMedium,

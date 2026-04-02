@@ -181,8 +181,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         allChapters.isEmpty ? 0 : allChapters.first.position + 1;
 
     final normalizedUrl = _normalizeUrl(_tempChapterUrl!);
-    final title =
-        (_tempChapterTitle?.isNotEmpty ?? false) ? _tempChapterTitle! : normalizedUrl;
+    final title = (_tempChapterTitle?.isNotEmpty ?? false)
+        ? _tempChapterTitle!
+        : normalizedUrl;
 
     final newChapterId = await db.chaptersDao.insertChapter(ChaptersCompanion(
       resourceId: Value(_resourceId!),
@@ -235,7 +236,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final title = await controller.getTitle() ?? '';
 
     if (_isInTempMode) {
-      if (mounted && title.isNotEmpty) setState(() => _tempChapterTitle = title);
+      if (mounted && title.isNotEmpty)
+        setState(() => _tempChapterTitle = title);
       return;
     }
 
@@ -268,8 +270,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   String _normalizeUrl(String url) {
-    var result =
-        url.contains('#') ? url.substring(0, url.indexOf('#')) : url;
+    var result = url.contains('#') ? url.substring(0, url.indexOf('#')) : url;
     if (result.endsWith('/')) result = result.substring(0, result.length - 1);
     return result;
   }
@@ -307,7 +308,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_chapterUrl == null || _resourceId == null || _effectiveChapterId == null) {
+    if (_chapterUrl == null ||
+        _resourceId == null ||
+        _effectiveChapterId == null) {
       return const Scaffold(body: SizedBox.shrink());
     }
 
@@ -331,7 +334,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               onDoneToggle: _isInTempMode ? _handleDoneToggle : null,
               // Passes the temp title to the chapter dropdown so it renders
               // the phantom "currently viewing" entry at the top.
-              tempChapterTitle: _isInTempMode ? (_tempChapterTitle ?? '') : null,
+              tempChapterTitle:
+                  _isInTempMode ? (_tempChapterTitle ?? '') : null,
             ),
             AnimatedOpacity(
               opacity: readerState.isLoading ? 1.0 : 0.0,

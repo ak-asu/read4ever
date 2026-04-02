@@ -6,9 +6,11 @@ import '../../../theme/app_colors.dart';
 
 class ChapterDropdownSheet extends ConsumerWidget {
   final int resourceId;
+
   /// The chapter ID to highlight as current. Pass null when the WebView is
   /// showing a temp page so no existing chapter is highlighted.
   final int? currentChapterId;
+
   /// When non-null, a temporary "currently viewing" entry is shown at the top
   /// of the list representing the unsaved temp page.
   final String? tempChapterTitle;
@@ -70,10 +72,12 @@ class ChapterDropdownSheet extends ConsumerWidget {
                             tempChapterTitle!.isNotEmpty
                                 ? tempChapterTitle!
                                 : 'Loading…',
-                            style:
-                                Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: AppColors.accent,
-                                    ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.accent,
+                                ),
                           ),
                           subtitle: Text(
                             'Not in library',
@@ -88,18 +92,19 @@ class ChapterDropdownSheet extends ConsumerWidget {
                           ),
                           dense: true,
                         ),
-                      if (tempChapterTitle != null)
-                        const Divider(height: 1),
+                      if (tempChapterTitle != null) const Divider(height: 1),
                       // Saved chapters
                       ...chapters.map((chapter) {
                         final isCurrent = chapter.id == currentChapterId;
                         return ListTile(
                           title: Text(
                             chapter.title,
-                            style:
-                                Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: isCurrent ? AppColors.accent : null,
-                                    ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: isCurrent ? AppColors.accent : null,
+                                ),
                           ),
                           trailing: chapter.isDone
                               ? Icon(Icons.check,

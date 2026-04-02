@@ -47,8 +47,7 @@ final appRouter = GoRouter(
       // CustomTransitionPage with zero duration — seamless chapter-to-chapter
       // navigation via pushReplacement in the chapter dropdown.
       pageBuilder: (context, state) {
-        final chapterId =
-            int.parse(state.pathParameters['chapterId']!);
+        final chapterId = int.parse(state.pathParameters['chapterId']!);
         final readerContext =
             (state.extra as ReaderContext?) ?? const ReaderContext();
         return CustomTransitionPage(

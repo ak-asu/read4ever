@@ -171,9 +171,7 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
                       textStyle: Theme.of(context).textTheme.labelMedium,
                     ),
                     icon: Icon(
-                      state.isAdvanced
-                          ? Icons.expand_less
-                          : Icons.expand_more,
+                      state.isAdvanced ? Icons.expand_less : Icons.expand_more,
                       size: 16,
                     ),
                     label: Text(state.isAdvanced ? 'Simple' : 'Advanced'),

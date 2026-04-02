@@ -43,7 +43,8 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
 
   void setUrl(String url) => state = state.copyWith(url: url);
 
-  void setResourceName(String name) => state = state.copyWith(resourceName: name);
+  void setResourceName(String name) =>
+      state = state.copyWith(resourceName: name);
 
   void setDescription(String desc) => state = state.copyWith(description: desc);
 
@@ -167,7 +168,8 @@ class ImportNotifier extends AutoDisposeNotifier<ImportState> {
         status: ImportStatus.ready,
         allPages: pages,
         deselectedUrls: [],
-        resourceName: state.resourceName.isEmpty ? derivedName : state.resourceName,
+        resourceName:
+            state.resourceName.isEmpty ? derivedName : state.resourceName,
       );
       return false;
     }
