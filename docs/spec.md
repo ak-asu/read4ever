@@ -1,4 +1,4 @@
-# LearnStack — Technical Spec
+# Read4ever — Technical Spec
 
 ## Stack
 
@@ -702,7 +702,7 @@ class JsBridge {
 
   Future<SelectionData?> getSelection() async {
     final result = await controller.evaluateJavascript(
-      source: 'JSON.stringify(window.__learnstack_getSelection())');
+      source: 'JSON.stringify(window.__read4ever_getSelection())');
     // parses and returns SelectionData(text, xpathStart, xpathEnd, startOffset, endOffset)
   }
 
@@ -745,14 +745,14 @@ class HighlightService {
 XPath format: `//tagName[n]/tagName[n]/...` from document root to the text node containing the selection anchor/focus. Stored as `xpathStart` + `xpathEnd` + `startOffset` + `endOffset` (character offsets within the text node).
 
 **Selection listener script (`assets/js/selection_listener.js`):**
-- Exposed as `window.__learnstack_getSelection()` — called by Flutter on ContextMenu action
+- Exposed as `window.__read4ever_getSelection()` — called by Flutter on ContextMenu action
 - Returns `{ text, xpathStart, xpathEnd, startOffset, endOffset }` or `null` if no selection
 - XPath helper: walks `node.parentNode` chain building positional path
 
 ### Highlight Restore
 
 **Restore script (`assets/js/highlight_restore.js`):**
-- Exposed as `window.__learnstack_restoreHighlights(highlightsJson)`
+- Exposed as `window.__read4ever_restoreHighlights(highlightsJson)`
 - For each highlight: resolves XPath → creates a `Range` → wraps matched text in `<mark class="ls-highlight" data-id="$id" style="background:#CCFBF1; border-radius:2px;">`
 - If XPath resolution fails (DOM changed after save): silently skip that highlight, log a warning
 
@@ -996,7 +996,7 @@ Confirm →
 ## File Structure
 
 ```
-learnstack/
+read4ever/
 ├── lib/
 │   ├── main.dart                             # runApp, ProviderScope
 │   ├── app.dart                              # MaterialApp.router, theme wiring
@@ -1082,8 +1082,8 @@ learnstack/
 │
 ├── assets/
 │   └── js/
-│       ├── selection_listener.js             # exposes window.__learnstack_getSelection()
-│       └── highlight_restore.js              # exposes window.__learnstack_restoreHighlights()
+│       ├── selection_listener.js             # exposes window.__read4ever_getSelection()
+│       └── highlight_restore.js              # exposes window.__read4ever_restoreHighlights()
 │
 ├── android/
 │   └── app/src/main/

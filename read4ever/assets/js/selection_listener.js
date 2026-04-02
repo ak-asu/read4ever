@@ -1,8 +1,8 @@
-// Exposes window.__learnstack_getSelection()
+// Exposes window.__read4ever_getSelection()
 // Called by Flutter when a ContextMenu action fires.
 // Returns { text, xpathStart, xpathEnd, startOffset, endOffset } or null.
 
-window.__learnstack_getSelection = function () {
+window.__read4ever_getSelection = function () {
   var sel = window.getSelection();
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
 
@@ -53,7 +53,7 @@ window.__learnstack_getSelection = function () {
       endOffset: range.endOffset
     };
   } catch (e) {
-    console.warn('[LearnStack] getSelection error:', e);
+    console.warn('[Read4ever] getSelection error:', e);
     return null;
   }
 };

@@ -12,7 +12,7 @@ void main() async {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
       ],
-      child: const LearnStackApp(),
+      child: const Read4everApp(),
     ),
   );
 }

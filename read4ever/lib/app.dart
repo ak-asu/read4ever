@@ -5,14 +5,14 @@ import 'router.dart';
 import 'providers/theme_provider.dart';
 import 'services/intent_handler.dart';
 
-class LearnStackApp extends ConsumerStatefulWidget {
-  const LearnStackApp({super.key});
+class Read4everApp extends ConsumerStatefulWidget {
+  const Read4everApp({super.key});
 
   @override
-  ConsumerState<LearnStackApp> createState() => _LearnStackAppState();
+  ConsumerState<Read4everApp> createState() => _Read4everAppState();
 }
 
-class _LearnStackAppState extends ConsumerState<LearnStackApp> {
+class _Read4everAppState extends ConsumerState<Read4everApp> {
   late final IntentHandler _intentHandler;
 
   @override
@@ -32,7 +32,7 @@ class _LearnStackAppState extends ConsumerState<LearnStackApp> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeNotifierProvider);
     return MaterialApp.router(
-      title: 'LearnStack',
+      title: 'Read4ever',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: themeMode,

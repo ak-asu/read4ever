@@ -1,4 +1,4 @@
-# LearnStack
+# Read4ever
 
 ## Idea
 A mobile-first Android app that turns scattered online resources — docs, guides, tutorials — into structured, trackable learning units: save a link, organize it into a track, read it in-app, highlight what matters, and always know exactly where you are and what you've completed.

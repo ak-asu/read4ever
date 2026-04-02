@@ -24,11 +24,11 @@ class JsBridge {
     await controller.evaluateJavascript(source: restoreScript);
   }
 
-  /// Calls window.__learnstack_getSelection() and parses the returned JSON.
+  /// Calls window.__read4ever_getSelection() and parses the returned JSON.
   /// Returns null if there is no active selection or if the JS returns null.
   Future<SelectionData?> getSelection() async {
     final result = await controller.evaluateJavascript(
-      source: 'JSON.stringify(window.__learnstack_getSelection())',
+      source: 'JSON.stringify(window.__read4ever_getSelection())',
     );
     if (result == null || result == 'null') return null;
     try {
@@ -40,7 +40,7 @@ class JsBridge {
     }
   }
 
-  /// Calls window.__learnstack_applyHighlight() to render a single new highlight
+  /// Calls window.__read4ever_applyHighlight() to render a single new highlight
   /// immediately after it has been saved to the database.
   ///
   /// [hasNote] — if true, the mark gets a dashed underline to signal a note exists.
@@ -57,11 +57,11 @@ class JsBridge {
     final hasNoteJs = hasNote ? 'true' : 'false';
     await controller.evaluateJavascript(
       source:
-          'window.__learnstack_applyHighlight($id, $xsJs, $xeJs, $startOffset, $endOffset, $hasNoteJs)',
+          'window.__read4ever_applyHighlight($id, $xsJs, $xeJs, $startOffset, $endOffset, $hasNoteJs)',
     );
   }
 
-  /// Calls window.__learnstack_restoreHighlights() to re-render all saved
+  /// Calls window.__read4ever_restoreHighlights() to re-render all saved
   /// highlights after a page load.
   ///
   /// Each highlight entry includes [hasNote] so the JS can apply the correct style.
@@ -78,14 +78,14 @@ class JsBridge {
         .toList();
     final jsArg = jsonEncode(jsonEncode(list));
     await controller.evaluateJavascript(
-      source: 'window.__learnstack_restoreHighlights($jsArg)',
+      source: 'window.__read4ever_restoreHighlights($jsArg)',
     );
   }
 
-  /// Calls window.__learnstack_scrollToHighlight() to scroll the mark into view.
+  /// Calls window.__read4ever_scrollToHighlight() to scroll the mark into view.
   Future<void> scrollToHighlight(int id) async {
     await controller.evaluateJavascript(
-      source: 'window.__learnstack_scrollToHighlight($id)',
+      source: 'window.__read4ever_scrollToHighlight($id)',
     );
   }
 
@@ -94,14 +94,14 @@ class JsBridge {
   Future<void> updateHighlightNote(int id, {required bool hasNote}) async {
     final hasNoteJs = hasNote ? 'true' : 'false';
     await controller.evaluateJavascript(
-      source: 'window.__learnstack_updateHighlightNote($id, $hasNoteJs)',
+      source: 'window.__read4ever_updateHighlightNote($id, $hasNoteJs)',
     );
   }
 
   /// Removes a mark from the DOM after its highlight has been deleted from the DB.
   Future<void> removeHighlight(int id) async {
     await controller.evaluateJavascript(
-      source: 'window.__learnstack_removeHighlight($id)',
+      source: 'window.__read4ever_removeHighlight($id)',
     );
   }
 }

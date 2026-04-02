@@ -129,7 +129,7 @@ class DrawerScaffold extends ConsumerWidget {
           const Padding(
             padding: EdgeInsets.fromLTRB(28, 16, 16, 10),
             child: Text(
-              'LearnStack',
+              'Read4ever',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
             ),
           ),

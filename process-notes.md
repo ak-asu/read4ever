@@ -116,7 +116,7 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 - Deepening round: chose to run 1 round; actively improved the highlighting verification step (asked for more scenarios and edge cases)
 
 **Submission planning notes:**
-- Core story confirmed: "LearnStack turns scattered online docs and guides into structured, trackable reading units"
+- Core story confirmed: "Read4ever turns scattered online docs and guides into structured, trackable reading units"
 - Wow moments: import dialog (smart chapter detection) + reader with highlight marked
 - GitHub repo already exists
 - Deployment: GitHub Release with release APK (v1.0.0)
@@ -185,7 +185,7 @@ The `importNotifierProvider` is `autoDispose`. Setting the URL on it from the `I
 - `lib/screens/highlights/highlights_screen.dart` — replaced stub; `Column` with filter bar (shown only when highlights exist) + `Expanded` ListView; filter bar uses `FilterChip` widgets backed by `HighlightFilterNotifier`; chapter filter scoped to selected resource; two-level empty state (no highlights at all vs no highlights match filter)
 - `lib/screens/reader/widgets/reader_highlight_sheet.dart` — bonus widget: tapping an existing mark in the reader opens a sheet with prev/next navigation through all chapter highlights, inline note edit, and delete via `HighlightService.removeHighlight()` (calls both DB delete and JS DOM removal)
 - `lib/services/js_bridge.dart` / `lib/services/highlight_service.dart` — extended with `scrollToHighlight`, `updateHighlightNote`, `removeHighlight` methods (used by both reader highlight sheet and DOM cleanup)
-- `assets/js/highlight_restore.js` — extended with `__learnstack_scrollToHighlight`, `__learnstack_updateHighlightNote`, `__learnstack_removeHighlight` (unwraps mark element, keeping text, then normalizes surrounding text nodes)
+- `assets/js/highlight_restore.js` — extended with `__read4ever_scrollToHighlight`, `__read4ever_updateHighlightNote`, `__read4ever_removeHighlight` (unwraps mark element, keeping text, then normalizes surrounding text nodes)
 - `lib/screens/reader/reader_screen.dart` — scroll-to-highlight wired in `_onPageLoaded` after `injectScripts()` + `restoreForChapter()` — sequence matters: marks must exist in DOM before `scrollIntoView` is called
 
 **Design decisions:**
@@ -225,8 +225,8 @@ The `importNotifierProvider` is `autoDispose`. Setting the URL on it from the `I
 ### Step 8: Highlighting system — JS bridge, ContextMenu, restore
 
 **What was built:**
-- `assets/js/selection_listener.js` — exposes `window.__learnstack_getSelection()`: bottom-up XPath traversal using `node.tagName[n]` positional path from document root; text nodes get `/text()[n]` suffix; returns `{text, xpathStart, xpathEnd, startOffset, endOffset}` or null; error-guarded with try/catch
-- `assets/js/highlight_restore.js` — IIFE exposing `window.__learnstack_restoreHighlights(json)` (bulk restore), `window.__learnstack_applyHighlight(id, xpathStart, xpathEnd, startOffset, endOffset)` (single new mark), `window.__learnstack_scrollToHighlight(id)` (scroll-to from Highlights screen); uses `surroundContents` with fallback to `extractContents + appendChild` for cross-element selections (scenario 7 in acceptance criteria)
+- `assets/js/selection_listener.js` — exposes `window.__read4ever_getSelection()`: bottom-up XPath traversal using `node.tagName[n]` positional path from document root; text nodes get `/text()[n]` suffix; returns `{text, xpathStart, xpathEnd, startOffset, endOffset}` or null; error-guarded with try/catch
+- `assets/js/highlight_restore.js` — IIFE exposing `window.__read4ever_restoreHighlights(json)` (bulk restore), `window.__read4ever_applyHighlight(id, xpathStart, xpathEnd, startOffset, endOffset)` (single new mark), `window.__read4ever_scrollToHighlight(id)` (scroll-to from Highlights screen); uses `surroundContents` with fallback to `extractContents + appendChild` for cross-element selections (scenario 7 in acceptance criteria)
 - `lib/models/selection_data.dart` — plain immutable class (not freezed — no codegen needed for a value object with no pattern matching); `fromJson` factory handles numeric offset fields
 - `lib/services/js_bridge.dart` — `JsBridge(InAppWebViewController)`: `injectScripts()` loads both JS assets via rootBundle; `getSelection()` calls evaluateJavascript + JSON-decodes result; `applyHighlight()` uses `jsonEncode` on XPath strings for safe JS string literals; `restoreHighlights()` double-encodes (JSON array → JSON string → JS arg) so the JS function receives the string to parse
 - `lib/services/highlight_service.dart` — `HighlightService(highlightsDao, jsBridge)`: `createHighlight()` inserts to DB then calls `jsBridge.applyHighlight` with the new row ID; `restoreForChapter()` calls `highlightsDao.getByChapter()` then `jsBridge.restoreHighlights()`
@@ -385,7 +385,7 @@ The `importNotifierProvider` is `autoDispose`. Setting the URL on it from the `I
 - `assets/js/` folder created with placeholder `selection_listener.js` and `highlight_restore.js`
 - `lib/theme/app_colors.dart` — all light + dark color constants
 - `lib/theme/app_theme.dart` — `ThemeData` light + dark using DM Sans, full typography scale, component overrides for Card, ElevatedButton, ProgressIndicator, BottomSheet, Drawer, ListTile
-- `lib/app.dart` — stub `LearnStackApp` (MaterialApp with light/dark theme, placeholder home screen showing teal ElevatedButton)
+- `lib/app.dart` — stub `Read4everApp` (MaterialApp with light/dark theme, placeholder home screen showing teal ElevatedButton)
 - `lib/main.dart` — `runApp` wrapped in `ProviderScope`
 - `flutter pub get` ran successfully: 101 packages resolved
 

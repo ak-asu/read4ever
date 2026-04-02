@@ -1,8 +1,8 @@
 // Exposes:
-//   window.__learnstack_restoreHighlights(highlightsJson) — bulk restore on page load
-//   window.__learnstack_applyHighlight(id, xpathStart, xpathEnd, startOffset, endOffset, hasNote)
-//   window.__learnstack_scrollToHighlight(id) — scroll a restored mark into view
-//   window.__learnstack_removeHighlight(id) — remove a mark from the DOM
+//   window.__read4ever_restoreHighlights(highlightsJson) — bulk restore on page load
+//   window.__read4ever_applyHighlight(id, xpathStart, xpathEnd, startOffset, endOffset, hasNote)
+//   window.__read4ever_scrollToHighlight(id) — scroll a restored mark into view
+//   window.__read4ever_removeHighlight(id) — remove a mark from the DOM
 
 (function () {
   function resolveXPath(xpath) {
@@ -50,12 +50,12 @@
     }
   }
 
-  window.__learnstack_restoreHighlights = function (highlightsJson) {
+  window.__read4ever_restoreHighlights = function (highlightsJson) {
     var highlights;
     try {
       highlights = JSON.parse(highlightsJson);
     } catch (e) {
-      console.warn('[LearnStack] Failed to parse highlights JSON:', e);
+      console.warn('[Read4ever] Failed to parse highlights JSON:', e);
       return;
     }
 
@@ -71,7 +71,7 @@
         var startNode = resolveXPath(h.xpathStart);
         var endNode = resolveXPath(h.xpathEnd);
         if (!startNode || !endNode) {
-          console.warn('[LearnStack] XPath not resolved for highlight', h.id);
+          console.warn('[Read4ever] XPath not resolved for highlight', h.id);
           return;
         }
         var range = document.createRange();
@@ -80,7 +80,7 @@
         resolved.push({ range: range, id: h.id, hasNote: !!h.hasNote });
       } catch (e) {
         console.warn(
-          '[LearnStack] Failed to create range for highlight',
+          '[Read4ever] Failed to create range for highlight',
           h.id,
           ':',
           e
@@ -105,12 +105,12 @@
       try {
         wrapRangeInMark(item.range, item.id, item.hasNote);
       } catch (e) {
-        console.warn('[LearnStack] Failed to restore highlight', item.id, ':', e);
+        console.warn('[Read4ever] Failed to restore highlight', item.id, ':', e);
       }
     });
   };
 
-  window.__learnstack_applyHighlight = function (
+  window.__read4ever_applyHighlight = function (
     id,
     xpathStart,
     xpathEnd,
@@ -122,7 +122,7 @@
       var startNode = resolveXPath(xpathStart);
       var endNode = resolveXPath(xpathEnd);
       if (!startNode || !endNode) {
-        console.warn('[LearnStack] XPath not resolved for new highlight', id);
+        console.warn('[Read4ever] XPath not resolved for new highlight', id);
         return;
       }
       var range = document.createRange();
@@ -130,11 +130,11 @@
       range.setEnd(endNode, endOffset);
       wrapRangeInMark(range, id, !!hasNote);
     } catch (e) {
-      console.warn('[LearnStack] Failed to apply highlight', id, ':', e);
+      console.warn('[Read4ever] Failed to apply highlight', id, ':', e);
     }
   };
 
-  window.__learnstack_scrollToHighlight = function (id) {
+  window.__read4ever_scrollToHighlight = function (id) {
     var mark = document.querySelector('.ls-highlight[data-id="' + id + '"]');
     if (mark) {
       mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -144,7 +144,7 @@
   // Updates only the visual style of an existing mark — used after a note is
   // added or removed so the dashed underline reflects the current state without
   // requiring a full page reload.
-  window.__learnstack_updateHighlightNote = function (id, hasNote) {
+  window.__read4ever_updateHighlightNote = function (id, hasNote) {
     var mark = document.querySelector('.ls-highlight[data-id="' + id + '"]');
     if (mark) mark.style.cssText = markStyle(!!hasNote);
   };
@@ -152,7 +152,7 @@
   // Removes a mark from the DOM and merges the surrounding text nodes back.
   // Called immediately after the highlight is deleted from the database so the
   // page reflects the deletion without a full reload.
-  window.__learnstack_removeHighlight = function (id) {
+  window.__read4ever_removeHighlight = function (id) {
     var mark = document.querySelector('.ls-highlight[data-id="' + id + '"]');
     if (!mark) return;
     var parent = mark.parentNode;

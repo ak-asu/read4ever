@@ -20,7 +20,7 @@ part 'database.g.dart';
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dbFolder.path, 'learnstack.sqlite'));
+    final file = File(p.join(dbFolder.path, 'read4ever.sqlite'));
     return NativeDatabase.createInBackground(file);
   });
 }

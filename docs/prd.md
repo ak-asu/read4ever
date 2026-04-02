@@ -1,8 +1,8 @@
-# LearnStack — Product Requirements
+# Read4ever — Product Requirements
 
 ## Problem Statement
 
-Self-taught developers and students collect online learning resources compulsively but rarely finish them — because saving a link and actually working through it are two entirely different habits. Without structure or progress tracking, learning material stays in a browser tab graveyard: no context between sessions, no sense of forward movement, no way to find notes or highlights after the fact. LearnStack replaces the browser + Notion patchwork with a single tool that handles import, reading, annotation, and progress tracking in one calm, well-made interface.
+Self-taught developers and students collect online learning resources compulsively but rarely finish them — because saving a link and actually working through it are two entirely different habits. Without structure or progress tracking, learning material stays in a browser tab graveyard: no context between sessions, no sense of forward movement, no way to find notes or highlights after the fact. Read4ever replaces the browser + Notion patchwork with a single tool that handles import, reading, annotation, and progress tracking in one calm, well-made interface.
 
 ---
 
@@ -10,7 +10,7 @@ Self-taught developers and students collect online learning resources compulsive
 
 ### Epic: Importing Resources
 
-- As a developer starting a new topic, I want to share a documentation URL directly from Chrome so that it opens in LearnStack pre-filled and ready to configure.
+- As a developer starting a new topic, I want to share a documentation URL directly from Chrome so that it opens in Read4ever pre-filled and ready to configure.
   - [ ] Sharing a URL from Chrome opens the app with the URL pre-populated in the import dialog
   - [ ] If the URL already exists as a resource or chapter in the library, the app opens that resource/chapter directly instead of starting an import
   - [ ] The URL is validated before any fetch is attempted
