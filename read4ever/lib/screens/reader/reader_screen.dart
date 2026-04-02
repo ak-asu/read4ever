@@ -402,6 +402,77 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     );
   }
 
+  // ── Bookmark FAB navigation ──────────────────────────────────────────────
+
+  bool get _hasPrevBookmark {
+    final ids = widget.readerContext.adjacentChapterIds;
+    return widget.readerContext.source == ReaderSource.bookmarks &&
+        ids != null &&
+        ids.isNotEmpty &&
+        ids[0] > 0;
+  }
+
+  bool get _hasNextBookmark {
+    final ids = widget.readerContext.adjacentChapterIds;
+    return widget.readerContext.source == ReaderSource.bookmarks &&
+        ids != null &&
+        ids.length > 1 &&
+        ids[1] > 0;
+  }
+
+  Future<void> _navigateViaBookmarkFab(int targetChapterId) async {
+    // Re-query the full bookmark list so the target chapter's adjacents are
+    // correct (prevents the FABs from disappearing after the first hop).
+    final db = ref.read(appDatabaseProvider);
+    final bookmarks = await db.chaptersDao.getBookmarked();
+    final idx = bookmarks.indexWhere((b) => b.chapter.id == targetChapterId);
+    if (!mounted) return;
+
+    final prevId = idx > 0 ? bookmarks[idx - 1].chapter.id : 0;
+    final nextId =
+        idx < bookmarks.length - 1 ? bookmarks[idx + 1].chapter.id : 0;
+
+    context.pushReplacement(
+      '/reader/$targetChapterId',
+      extra: ReaderContext(
+        source: ReaderSource.bookmarks,
+        adjacentChapterIds: [prevId, nextId],
+      ),
+    );
+  }
+
+  Widget? _buildBookmarkFabs() {
+    if (widget.readerContext.source != ReaderSource.bookmarks) return null;
+    final ids = widget.readerContext.adjacentChapterIds;
+    if (ids == null) return null;
+
+    final showPrev = _hasPrevBookmark;
+    final showNext = _hasNextBookmark;
+    if (!showPrev && !showNext) return null;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showPrev) ...[
+          FloatingActionButton.small(
+            heroTag: 'fab_prev',
+            onPressed: () => _navigateViaBookmarkFab(ids[0]),
+            tooltip: 'Previous bookmark',
+            child: const Icon(Icons.arrow_upward),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (showNext)
+          FloatingActionButton.small(
+            heroTag: 'fab_next',
+            onPressed: () => _navigateViaBookmarkFab(ids[1]),
+            tooltip: 'Next bookmark',
+            child: const Icon(Icons.arrow_downward),
+          ),
+      ],
+    );
+  }
+
   // ── Build ────────────────────────────────────────────────────────────────
 
   @override
@@ -415,6 +486,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final readerState = ref.watch(readerNotifierProvider(_args));
 
     return Scaffold(
+      floatingActionButton: _buildBookmarkFabs(),
       body: SafeArea(
         child: Column(
           children: [

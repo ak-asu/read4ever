@@ -16,9 +16,43 @@ class ChaptersDao extends DatabaseAccessor<AppDatabase>
         ..orderBy([(c) => OrderingTerm.asc(c.position)]))
       .watch();
 
-  // Implemented in step 9 — chapters WHERE bookmarkedAt IS NOT NULL ORDER BY bookmarkedAt ASC
-  Stream<List<ChapterWithResource>> watchBookmarked() =>
-      throw UnimplementedError();
+  static const _bookmarkedQuery = '''
+    SELECT
+      c.id              AS c_id,
+      c.resource_id     AS c_resource_id,
+      c.title           AS c_title,
+      c.url             AS c_url,
+      c.position        AS c_position,
+      c.is_done         AS c_is_done,
+      c.bookmarked_at   AS c_bookmarked_at,
+      c.created_at      AS c_created_at,
+      r.id              AS r_id,
+      r.title           AS r_title,
+      r.description     AS r_description,
+      r.url             AS r_url,
+      r.created_at      AS r_created_at,
+      r.last_accessed_at        AS r_last_accessed_at,
+      r.last_opened_chapter_id  AS r_last_opened_chapter_id
+    FROM chapters c
+    INNER JOIN resources r ON r.id = c.resource_id
+    WHERE c.bookmarked_at IS NOT NULL
+    ORDER BY c.bookmarked_at ASC
+  ''';
+
+  Stream<List<ChapterWithResource>> watchBookmarked() {
+    return customSelect(
+      _bookmarkedQuery,
+      readsFrom: {chapters, resources},
+    ).watch().map((rows) => rows.map(ChapterWithResource.fromRow).toList());
+  }
+
+  /// Non-streaming fetch — used by reader FABs to compute adjacents on navigation.
+  Future<List<ChapterWithResource>> getBookmarked() {
+    return customSelect(
+      _bookmarkedQuery,
+      readsFrom: {chapters, resources},
+    ).get().then((rows) => rows.map(ChapterWithResource.fromRow).toList());
+  }
 
   Future<int> insertChapter(ChaptersCompanion entry) =>
       into(chapters).insert(entry);

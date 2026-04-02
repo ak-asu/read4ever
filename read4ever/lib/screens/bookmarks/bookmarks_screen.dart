@@ -1,10 +1,64 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class BookmarksScreen extends StatelessWidget {
+import '../../providers/bookmarks_provider.dart';
+import '../../theme/app_colors.dart';
+import 'widgets/bookmark_list_item.dart';
+
+class BookmarksScreen extends ConsumerWidget {
   const BookmarksScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const Center(child: Text('Bookmarks — coming soon'));
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bookmarks = ref.watch(bookmarksProvider);
+
+    return bookmarks.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, __) => const Center(child: Text('Failed to load bookmarks')),
+      data: (items) {
+        if (items.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.bookmark_border,
+                    size: 48, color: AppColors.textSecondary),
+                const SizedBox(height: 12),
+                Text(
+                  'No bookmarks yet',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Bookmark chapters while reading to find them here',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            // Fixed 2-element list: [prevId_or_0, nextId_or_0].
+            // 0 is used as a sentinel meaning "no chapter in this direction"
+            // (Drift IDs start at 1 so 0 is never a valid chapter ID).
+            final prevId = index > 0 ? items[index - 1].chapter.id : 0;
+            final nextId =
+                index < items.length - 1 ? items[index + 1].chapter.id : 0;
+
+            return BookmarkListItem(
+              item: items[index],
+              adjacentChapterIds: [prevId, nextId],
+            );
+          },
+        );
+      },
+    );
   }
 }
