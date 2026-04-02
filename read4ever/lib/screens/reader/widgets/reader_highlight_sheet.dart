@@ -113,19 +113,6 @@ class _ReaderHighlightSheetState extends ConsumerState<ReaderHighlightSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 32,
-              height: 4,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-
           // Prev / counter / Next navigation row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
