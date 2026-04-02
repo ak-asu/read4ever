@@ -50,7 +50,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   Future<void> _onPageLoaded(InAppWebViewController controller) async {
     ref.read(readerNotifierProvider(_args).notifier).setLoading(false);
-    if (mounted) setState(() => _showErrorState = false);
+    // Do NOT clear _showErrorState here — Android WebView loads its native
+    // error page after onReceivedError, which triggers onLoadStop. Clearing
+    // the error state here would hide our overlay and clobber the chapter title.
+    if (_showErrorState) return;
 
     final title = await controller.getTitle() ?? '';
     if (title.isNotEmpty && mounted) {
@@ -114,6 +117,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                       await _onPageLoaded(controller);
                     },
                     onReceivedError: (controller, request, error) {
+                      // Only show error state for main-frame failures, not
+                      // sub-resource errors (images, scripts, etc.).
+                      if (!(request.isForMainFrame ?? false)) return;
                       if (mounted) setState(() => _showErrorState = true);
                       ref
                           .read(readerNotifierProvider(_args).notifier)
@@ -121,7 +127,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     },
                   ),
                   if (_showErrorState)
-                    ReaderErrorState(webViewController: _webViewController),
+                    Positioned.fill(
+                      child: ReaderErrorState(
+                          webViewController: _webViewController),
+                    ),
                 ],
               ),
             ),
