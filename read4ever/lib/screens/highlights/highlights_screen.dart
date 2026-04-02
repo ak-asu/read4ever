@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/highlight_with_chapter_and_resource.dart';
+import '../../providers/database_provider.dart';
 import '../../providers/highlights_provider.dart';
+import '../../providers/multi_select_provider.dart';
 import '../../theme/app_colors.dart';
 import 'widgets/highlight_bottom_sheet.dart';
 import 'widgets/highlight_list_item.dart';
@@ -15,6 +17,10 @@ class HighlightsScreen extends ConsumerWidget {
     final allAsync = ref.watch(highlightsProvider);
     final filter = ref.watch(highlightFilterNotifierProvider);
     final filterNotifier = ref.read(highlightFilterNotifierProvider.notifier);
+
+    final selected = ref.watch(highlightsMultiSelectProvider);
+    final selectNotifier = ref.read(highlightsMultiSelectProvider.notifier);
+    final isMultiSelect = selected.isNotEmpty;
 
     return allAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -31,6 +37,8 @@ class HighlightsScreen extends ConsumerWidget {
           }
           return true;
         }).toList();
+
+        final filteredIds = filtered.map((item) => item.highlight.id).toList();
 
         // ── Derive unique resources + chapters for filter pickers ─────────
         final resourceMap = <int, String>{};
@@ -55,15 +63,28 @@ class HighlightsScreen extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // ── Multi-select action bar ───────────────────────────────────
+            if (isMultiSelect)
+              _MultiSelectBar(
+                count: selected.length,
+                onSelectAll: () => selectNotifier.selectAll(filteredIds),
+                onClear: selectNotifier.clear,
+                onDelete: () => _confirmBulkDelete(
+                  context,
+                  ref,
+                  selected.toList(),
+                  selectNotifier,
+                ),
+              ),
+
             // ── Filter bar — shown only when there are highlights ─────────
-            if (all.isNotEmpty)
+            if (all.isNotEmpty && !isMultiSelect)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   children: [
-                    // Resource filter chip
                     FilterChip(
                       label: Text(selectedResourceName ?? 'All resources'),
                       selected: filter.resourceId != null,
@@ -81,7 +102,6 @@ class HighlightsScreen extends ConsumerWidget {
                           : null,
                     ),
                     const SizedBox(width: 8),
-                    // Chapter filter chip — disabled if no chapters in scope
                     FilterChip(
                       label: Text(selectedChapterName ?? 'All chapters'),
                       selected: filter.chapterId != null,
@@ -114,10 +134,15 @@ class HighlightsScreen extends ConsumerWidget {
                           const Divider(height: 1, indent: 16, endIndent: 16),
                       itemBuilder: (ctx, i) {
                         final item = filtered[i];
+                        final id = item.highlight.id;
                         return HighlightListItem(
-                          key: ValueKey(item.highlight.id),
+                          key: ValueKey(id),
                           item: item,
                           onTap: () => _showDetailSheet(ctx, item),
+                          onLongPress: () => selectNotifier.toggle(id),
+                          isMultiSelectMode: isMultiSelect,
+                          isSelected: selected.contains(id),
+                          onToggleSelect: () => selectNotifier.toggle(id),
                         );
                       },
                     ),
@@ -136,7 +161,6 @@ class HighlightsScreen extends ConsumerWidget {
     int? currentId,
     HighlightFilterNotifier notifier,
   ) {
-    // If already filtered, tapping the chip clears the filter
     if (currentId != null) {
       notifier.setResource(null);
       notifier.setChapter(null);
@@ -156,8 +180,7 @@ class HighlightsScreen extends ConsumerWidget {
                   : null,
               onTap: () {
                 notifier.setResource(e.key);
-                notifier
-                    .setChapter(null); // reset chapter when resource changes
+                notifier.setChapter(null);
                 Navigator.of(ctx).pop();
               },
             ),
@@ -174,7 +197,6 @@ class HighlightsScreen extends ConsumerWidget {
     int? currentId,
     HighlightFilterNotifier notifier,
   ) {
-    // If already filtered, tapping clears the filter
     if (currentId != null) {
       notifier.setChapter(null);
       return;
@@ -214,6 +236,38 @@ class HighlightsScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _confirmBulkDelete(
+    BuildContext context,
+    WidgetRef ref,
+    List<int> ids,
+    MultiSelectNotifier notifier,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete highlights?'),
+        content: Text(
+          'Delete ${ids.length} highlight${ids.length == 1 ? '' : 's'}? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(appDatabaseProvider).highlightsDao.bulkDelete(ids);
+      notifier.clear();
+    }
+  }
+
   // ── Empty state ───────────────────────────────────────────────────────────
 
   Widget _buildEmptyState(BuildContext context, bool noHighlightsAtAll) {
@@ -248,6 +302,57 @@ class HighlightsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Multi-select action bar ───────────────────────────────────────────────────
+
+class _MultiSelectBar extends StatelessWidget {
+  final int count;
+  final VoidCallback onSelectAll;
+  final VoidCallback onClear;
+  final VoidCallback onDelete;
+
+  const _MultiSelectBar({
+    required this.count,
+    required this.onSelectAll,
+    required this.onClear,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final barColor = isDark ? AppColors.surfaceDark : AppColors.surface;
+
+    return Material(
+      elevation: 2,
+      color: barColor,
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Clear selection',
+            onPressed: onClear,
+          ),
+          Text(
+            '$count selected',
+            style: theme.textTheme.titleSmall,
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: onSelectAll,
+            child: const Text('Select all'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Delete selected',
+            onPressed: onDelete,
+          ),
+        ],
       ),
     );
   }

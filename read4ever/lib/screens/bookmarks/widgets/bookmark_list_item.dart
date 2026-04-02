@@ -12,28 +12,52 @@ class BookmarkListItem extends StatelessWidget {
   /// 0 means no chapter in that direction.
   final List<int> adjacentChapterIds;
 
+  final bool isMultiSelectMode;
+  final bool isSelected;
+  final VoidCallback onLongPress;
+  final VoidCallback onToggleSelect;
+
   const BookmarkListItem({
     super.key,
     required this.item,
     required this.adjacentChapterIds,
+    this.isMultiSelectMode = false,
+    this.isSelected = false,
+    required this.onLongPress,
+    required this.onToggleSelect,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      title: Text(item.chapter.title, style: theme.textTheme.bodyMedium),
-      subtitle: Text(
-        item.resource.title,
-        style: theme.textTheme.labelSmall
-            ?.copyWith(color: AppColors.textSecondary),
-      ),
-      onTap: () => context.push(
-        '/reader/${item.chapter.id}',
-        extra: ReaderContext(
-          source: ReaderSource.bookmarks,
-          adjacentChapterIds: adjacentChapterIds,
+    return Material(
+      color: isSelected
+          ? AppColors.accentSubtle.withValues(alpha: 0.4)
+          : Colors.transparent,
+      child: ListTile(
+        leading: isMultiSelectMode
+            ? Checkbox(
+                value: isSelected,
+                onChanged: (_) => onToggleSelect(),
+                activeColor: AppColors.accent,
+              )
+            : null,
+        title: Text(item.chapter.title, style: theme.textTheme.bodyMedium),
+        subtitle: Text(
+          item.resource.title,
+          style: theme.textTheme.labelSmall
+              ?.copyWith(color: AppColors.textSecondary),
         ),
+        onTap: isMultiSelectMode
+            ? onToggleSelect
+            : () => context.push(
+                  '/reader/${item.chapter.id}',
+                  extra: ReaderContext(
+                    source: ReaderSource.bookmarks,
+                    adjacentChapterIds: adjacentChapterIds,
+                  ),
+                ),
+        onLongPress: isMultiSelectMode ? null : onLongPress,
       ),
     );
   }

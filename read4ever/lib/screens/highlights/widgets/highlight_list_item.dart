@@ -5,22 +5,34 @@ import '../../../theme/app_colors.dart';
 
 /// A single highlight entry in the Highlights screen list.
 ///
-/// Single-tap → opens the detail bottom sheet (via [onTap]).
-/// Double-tap → toggles between 2-line truncation and full text (local state).
+/// Normal mode:
+///   Single-tap → [onTap] (opens detail bottom sheet)
+///   Double-tap → toggles expand/collapse (local state)
+///   Long-press → [onLongPress] (enters multi-select mode)
 ///
-/// Uses [GestureDetector] rather than [InkWell] with onDoubleTap because
-/// InkWell delays the single-tap by kDoubleTapTimeout to distinguish the two
-/// gestures — on MIUI this can conflict with the system's touch handling and
-/// make double-tap unreliable. GestureDetector resolves both simultaneously
-/// without the tap-delay side-effect.
+/// Multi-select mode ([isMultiSelectMode] == true):
+///   Tap → [onToggleSelect]
+///   Leading area shows a [Checkbox] instead of the teal accent bar.
 class HighlightListItem extends StatefulWidget {
   final HighlightWithChapterAndResource item;
+
+  /// Normal-mode callbacks
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  /// Multi-select mode
+  final bool isMultiSelectMode;
+  final bool isSelected;
+  final VoidCallback onToggleSelect;
 
   const HighlightListItem({
     super.key,
     required this.item,
     required this.onTap,
+    required this.onLongPress,
+    this.isMultiSelectMode = false,
+    this.isSelected = false,
+    required this.onToggleSelect,
   });
 
   @override
@@ -39,26 +51,43 @@ class _HighlightListItemState extends State<HighlightListItem> {
     final c = widget.item.chapter;
     final r = widget.item.resource;
 
+    Widget leading;
+    if (widget.isMultiSelectMode) {
+      leading = Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Checkbox(
+          value: widget.isSelected,
+          onChanged: (_) => widget.onToggleSelect(),
+          activeColor: AppColors.accent,
+        ),
+      );
+    } else {
+      leading = Container(
+        width: 3,
+        constraints: const BoxConstraints(minHeight: 36),
+        decoration: BoxDecoration(
+          color: AppColors.accent,
+          borderRadius: BorderRadius.circular(2),
+        ),
+        margin: const EdgeInsets.only(right: 12, top: 2),
+      );
+    }
+
     return Material(
-      color: Colors.transparent,
+      color: widget.isSelected
+          ? AppColors.accentSubtle.withValues(alpha: 0.4)
+          : Colors.transparent,
       child: InkWell(
-        onTap: widget.onTap,
-        onDoubleTap: _toggleExpanded,
+        onTap: widget.isMultiSelectMode ? widget.onToggleSelect : widget.onTap,
+        onLongPress:
+            widget.isMultiSelectMode ? null : widget.onLongPress,
+        onDoubleTap: widget.isMultiSelectMode ? null : _toggleExpanded,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Teal accent bar on the left
-              Container(
-                width: 3,
-                constraints: const BoxConstraints(minHeight: 36),
-                decoration: BoxDecoration(
-                  color: AppColors.accent,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-                margin: const EdgeInsets.only(right: 12, top: 2),
-              ),
+              leading,
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -86,19 +115,20 @@ class _HighlightListItemState extends State<HighlightListItem> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        // Expand/collapse toggle — visible affordance for
-                        // double-tap; also tappable directly for convenience.
-                        GestureDetector(
-                          onTap: _toggleExpanded,
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: Icon(
-                              _expanded ? Icons.expand_less : Icons.expand_more,
-                              size: 16,
-                              color: AppColors.textSecondary,
+                        if (!widget.isMultiSelectMode)
+                          GestureDetector(
+                            onTap: _toggleExpanded,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Icon(
+                                _expanded
+                                    ? Icons.expand_less
+                                    : Icons.expand_more,
+                                size: 16,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                     // Note preview (if present)
