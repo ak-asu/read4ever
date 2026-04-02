@@ -25,6 +25,10 @@ class ReaderScreen extends ConsumerStatefulWidget {
 class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   InAppWebViewController? _webViewController;
   bool _showErrorState = false;
+  // Tracks whether the most recent load attempt ended with an error. Reset on
+  // every onLoadStart so we can distinguish "retry succeeded" from "error page
+  // finished loading" when onLoadStop fires.
+  bool _lastLoadHadError = false;
   String? _chapterUrl;
   int? _resourceId;
 
@@ -50,10 +54,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   Future<void> _onPageLoaded(InAppWebViewController controller) async {
     ref.read(readerNotifierProvider(_args).notifier).setLoading(false);
-    // Do NOT clear _showErrorState here — Android WebView loads its native
-    // error page after onReceivedError, which triggers onLoadStop. Clearing
-    // the error state here would hide our overlay and clobber the chapter title.
-    if (_showErrorState) return;
+    // If the load ended with an error, onReceivedError already set
+    // _lastLoadHadError = true. Android then loads its native error page, which
+    // fires onLoadStop — we skip here so the overlay stays and the title is
+    // not clobbered. On a successful retry _lastLoadHadError is false, so we
+    // fall through, clear the overlay, and update the title normally.
+    if (_lastLoadHadError) return;
+    if (mounted) setState(() => _showErrorState = false);
 
     final title = await controller.getTitle() ?? '';
     if (title.isNotEmpty && mounted) {
@@ -108,18 +115,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                       _webViewController = controller;
                     },
                     onLoadStart: (controller, url) {
+                      _lastLoadHadError = false; // reset for each new navigation
                       ref
                           .read(readerNotifierProvider(_args).notifier)
                           .setLoading(true);
-                      if (mounted) setState(() => _showErrorState = false);
+                      // Don't clear _showErrorState here — keep the overlay
+                      // visible during retry until the page successfully loads.
                     },
                     onLoadStop: (controller, url) async {
                       await _onPageLoaded(controller);
                     },
                     onReceivedError: (controller, request, error) {
-                      // Only show error state for main-frame failures, not
-                      // sub-resource errors (images, scripts, etc.).
+                      // Only handle main-frame failures.
                       if (!(request.isForMainFrame ?? false)) return;
+                      _lastLoadHadError = true;
                       if (mounted) setState(() => _showErrorState = true);
                       ref
                           .read(readerNotifierProvider(_args).notifier)
