@@ -56,12 +56,28 @@ dev_dependencies:
   # Codegen
   build_runner: ^2.4.12
   drift_dev: ^2.20.0
+  flutter_launcher_icons: ^0.14.4
   riverpod_generator: ^2.4.3
   freezed: ^2.5.7
   json_serializable: ^6.8.0
+
+flutter_launcher_icons:
+  image_path: "assets/logo.png"
+  android: true
+  ios: false
+  windows:
+    generate: false
+    image_path: "assets/logo.png"
+    icon_size: 48 # min: 48, max: 256, default: 48
+  # adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/logo.png"
+  min_sdk_android: 21
+  background_color_ios: "#FFFFFF"
+  remove_alpha_ios: true
 
 flutter:
   uses-material-design: true
 
   assets:
+    - assets/
     - assets/js/
