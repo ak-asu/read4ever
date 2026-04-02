@@ -132,6 +132,43 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step I3: Bottom sheet polish — drag handles + Note sheet header
+
+**What was built:**
+- Added `showDragHandle: true` to all 7 `showModalBottomSheet` calls in the app: `highlights_screen.dart` (`_showResourcePicker`, `_showChapterPicker`, `_showDetailSheet`), `import_screen.dart` (`showImportBottomSheet`), `reader_toolbar.dart` (`_showChapterDropdown`), `reader_screen.dart` (`_showNoteBottomSheet`, `_onMarkTapped`)
+- Added `Text('Add note', style: Theme.of(context).textTheme.titleSmall)` header + `SizedBox(height: 8)` spacer above the TextField in `_NoteSheet` — the sheet was previously unlabeled
+
+**Issues:** None. `flutter analyze` — no issues.
+
+**Verification:** Open every bottom sheet in the app (import, chapter dropdown, note, highlight detail, filter pickers) — all should display a visible drag handle. Open the note sheet from the reader context menu → confirm "Add note" header is visible above the text field.
+
+---
+
+### Step I1: Reader open jank — blank flash + progress bar layout shift
+
+**What was built:**
+- `lib/screens/reader/reader_screen.dart` (line 472): replaced `Scaffold(body: SizedBox.shrink())` with `Scaffold(body: Center(child: CircularProgressIndicator()))` — reader now shows a centered spinner while `_init()` resolves instead of a blank white screen
+- `lib/screens/reader/reader_screen.dart` (lines 495–503): replaced `AnimatedOpacity` wrapping `LinearProgressIndicator` with `AnimatedContainer` that animates `constraints.maxHeight` between `0.0` and `2.0` (200ms, `Curves.easeOut`) — the 2px layout gap that was permanently reserved is now fully collapsed when not loading, eliminating the toolbar-to-WebView jitter
+
+**Issues:** None. `flutter analyze` — no issues.
+
+**Verification:** Learner to open any resource → tap Resume → confirm brief spinner (not white flash) before WebView appears. Watch toolbar/WebView boundary during page load — no 2px gap when progress bar is hidden.
+
+---
+
+### Step I2: Highlights filter chips — tap to change, X to clear
+
+**What was built:**
+- `lib/screens/highlights/highlights_screen.dart` — two changes:
+  1. Removed early-return bail-outs in `_showResourcePicker` and `_showChapterPicker` (the `if (currentId != null) { notifier.clear(); return; }` blocks) — tapping a selected chip now always opens the picker
+  2. Replaced `avatar: Icon(Icons.close)` on both `FilterChip` widgets with `onDeleted` callbacks (`null` when chip is unselected, clears filter when chip is selected) — X icon now appears natively via Flutter's chip delete affordance, tap = change, X = clear
+
+**Issues:** None. `flutter analyze` — no issues.
+
+**Verification:** Set a resource filter → tap the chip again → confirm picker opens → select a different resource → confirm filter switches without clearing first. Tap the X icon → confirm filter clears. Repeat for chapter chip.
+
+---
+
 ### Step 14: Android share sheet integration
 
 **What was built:**
@@ -426,3 +463,21 @@ The `importNotifierProvider` is `autoDispose`. Setting the URL on it from the `I
 **Issues:** None. `flutter analyze` — no new issues (one pre-existing unused import in settings_screen.dart unrelated to this step).
 
 **Verification:** Pending — learner to run all 3 multi-select flows per checklist acceptance criteria.
+
+---
+
+## /iterate
+
+### Iteration 1
+
+**Improvement requested:** "UX polish and UI jank resolve wherever applicable" — broad directive, no specific target.
+
+**Review pass surfaced:**
+- Reader blank screen flash on every open (`reader_screen.dart` init guard returns empty Scaffold during async `_init()`)
+- Progress bar 2px permanent layout gap causes toolbar/WebView jitter on load start/stop (AnimatedOpacity doesn't collapse height)
+- Highlights filter chips clear filter on tap instead of reopening picker — can't change filter without clearing first; avatar used for close icon instead of idiomatic `onDeleted`
+- All bottom sheets lack drag handles; Note sheet has no title
+
+**Items created:** 3 (I1, I2, I3) — all UX/polish, no data model changes needed.
+
+**Learner approach:** Gave a broad "fix all" directive rather than naming specific items — comfortable delegating the audit. Less hands-on than during the structured build phase.
