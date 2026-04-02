@@ -7,6 +7,7 @@ import '../../db/database.dart';
 import '../../providers/database_provider.dart';
 import '../../providers/multi_select_provider.dart';
 import '../../providers/resources_provider.dart';
+import '../../providers/tags_provider.dart';
 import '../../theme/app_colors.dart';
 import '../import/import_screen.dart';
 import 'widgets/tag_input.dart';
@@ -23,17 +24,31 @@ class ResourceDetailScreen extends ConsumerStatefulWidget {
 class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
   late int _resourceId;
 
-  // Controllers for inline editing
+  // Editing controllers
   late TextEditingController _titleController;
   late TextEditingController _descController;
 
-  // Focus nodes — auto-save on blur
-  final _titleFocus = FocusNode();
-  final _descFocus = FocusNode();
-
-  // Track last-saved values to avoid spurious DB writes
+  // Last-persisted values for dirty detection
+  bool _initialized = false;
   String _savedTitle = '';
   String _savedDesc = '';
+
+  // ── Pending changes (not written to DB until Save) ──────────────────────
+  // Tags
+  final List<String> _pendingAddedTagNames = [];
+  final Set<int> _pendingRemovedTagIds = {};
+
+  // Chapters
+  List<int>? _pendingChapterOrder; // null = no reorder pending
+  final Set<int> _pendingDeletedChapterIds = {};
+
+  bool get _isDirty =>
+      _titleController.text.trim() != _savedTitle ||
+      _descController.text.trim() != _savedDesc ||
+      _pendingAddedTagNames.isNotEmpty ||
+      _pendingRemovedTagIds.isNotEmpty ||
+      _pendingChapterOrder != null ||
+      _pendingDeletedChapterIds.isNotEmpty;
 
   @override
   void initState() {
@@ -41,52 +56,168 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
     _resourceId = int.parse(widget.id);
     _titleController = TextEditingController();
     _descController = TextEditingController();
-    _titleFocus.addListener(_onTitleFocusChange);
-    _descFocus.addListener(_onDescFocusChange);
+    // Rebuild on text change so Save button enables/disables live.
+    _titleController.addListener(_onTextChanged);
+    _descController.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
+    _titleController.removeListener(_onTextChanged);
+    _descController.removeListener(_onTextChanged);
     _titleController.dispose();
     _descController.dispose();
-    _titleFocus.removeListener(_onTitleFocusChange);
-    _descFocus.removeListener(_onDescFocusChange);
-    _titleFocus.dispose();
-    _descFocus.dispose();
     super.dispose();
   }
 
-  void _onTitleFocusChange() {
-    if (!_titleFocus.hasFocus) _saveTitle();
+  void _onTextChanged() => setState(() {});
+
+  // ── Tag callbacks ─────────────────────────────────────────────────────────
+
+  void _onTagAdd(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+
+    final dbTags =
+        ref.read(tagsForResourceProvider(_resourceId)).valueOrNull ?? [];
+    final lowerName = trimmed.toLowerCase();
+
+    // If a DB tag with this name was marked for removal, just un-remove it.
+    for (final tag in dbTags) {
+      if (tag.name.toLowerCase() == lowerName &&
+          _pendingRemovedTagIds.contains(tag.id)) {
+        setState(() => _pendingRemovedTagIds.remove(tag.id));
+        return;
+      }
+    }
+
+    // Ignore if already present in the effective tag list.
+    final existingNames = {
+      ...dbTags
+          .where((t) => !_pendingRemovedTagIds.contains(t.id))
+          .map((t) => t.name.toLowerCase()),
+      ..._pendingAddedTagNames.map((n) => n.toLowerCase()),
+    };
+    if (existingNames.contains(lowerName)) return;
+
+    setState(() => _pendingAddedTagNames.add(trimmed));
   }
 
-  void _onDescFocusChange() {
-    if (!_descFocus.hasFocus) _saveDesc();
+  void _onTagRemove(Tag tag) {
+    if (tag.id < 0) {
+      // Negative id = a pending-add (not yet in DB); remove by list index.
+      final index = -tag.id - 1;
+      if (index >= 0 && index < _pendingAddedTagNames.length) {
+        setState(() => _pendingAddedTagNames.removeAt(index));
+      }
+    } else {
+      setState(() => _pendingRemovedTagIds.add(tag.id));
+    }
   }
 
-  Future<void> _saveTitle() async {
-    final value = _titleController.text.trim();
-    if (value.isEmpty || value == _savedTitle) return;
-    _savedTitle = value;
-    await ref.read(appDatabaseProvider).resourcesDao.updateResource(
-          ResourcesCompanion(
-            id: Value(_resourceId),
-            title: Value(value),
+  // ── Chapter helpers ───────────────────────────────────────────────────────
+
+  List<Chapter> _computeDisplayChapters(List<Chapter> dbChapters) {
+    // Hide chapters that are pending deletion.
+    final filtered = dbChapters
+        .where((c) => !_pendingDeletedChapterIds.contains(c.id))
+        .toList();
+
+    // Apply pending reorder if any.
+    if (_pendingChapterOrder != null) {
+      final orderMap = {
+        for (int i = 0; i < _pendingChapterOrder!.length; i++)
+          _pendingChapterOrder![i]: i,
+      };
+      filtered.sort((a, b) {
+        final ai = orderMap[a.id] ?? 999999;
+        final bi = orderMap[b.id] ?? 999999;
+        return ai.compareTo(bi);
+      });
+    }
+
+    return filtered;
+  }
+
+  // ── Save / Discard ────────────────────────────────────────────────────────
+
+  Future<void> _saveAll() async {
+    final db = ref.read(appDatabaseProvider);
+
+    final newTitle = _titleController.text.trim();
+    if (newTitle.isNotEmpty && newTitle != _savedTitle) {
+      await db.resourcesDao.updateResource(
+        ResourcesCompanion(id: Value(_resourceId), title: Value(newTitle)),
+      );
+      _savedTitle = newTitle;
+    }
+
+    final newDesc = _descController.text.trim();
+    if (newDesc != _savedDesc) {
+      await db.resourcesDao.updateResource(
+        ResourcesCompanion(
+          id: Value(_resourceId),
+          description: Value(newDesc.isEmpty ? null : newDesc),
+        ),
+      );
+      _savedDesc = newDesc;
+    }
+
+    for (final name in List<String>.from(_pendingAddedTagNames)) {
+      await db.tagsDao.addTagToResource(_resourceId, name);
+    }
+    for (final tagId in Set<int>.from(_pendingRemovedTagIds)) {
+      await db.tagsDao.removeTagFromResource(_resourceId, tagId);
+    }
+
+    // Reorder only IDs that aren't also being deleted.
+    final orderToPersist = _pendingChapterOrder
+        ?.where((id) => !_pendingDeletedChapterIds.contains(id))
+        .toList();
+    if (orderToPersist != null && orderToPersist.isNotEmpty) {
+      await db.chaptersDao.reorder(orderToPersist);
+    }
+
+    if (_pendingDeletedChapterIds.isNotEmpty) {
+      await db.chaptersDao.bulkDelete(_pendingDeletedChapterIds.toList());
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _pendingAddedTagNames.clear();
+      _pendingRemovedTagIds.clear();
+      _pendingChapterOrder = null;
+      _pendingDeletedChapterIds.clear();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Saved')),
+    );
+  }
+
+  Future<void> _showDiscardDialog() async {
+    final shouldDiscard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Unsaved changes'),
+        content: const Text('Discard all unsaved changes?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep editing'),
           ),
-        );
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (shouldDiscard == true && mounted) context.pop();
   }
 
-  Future<void> _saveDesc() async {
-    final value = _descController.text.trim();
-    if (value == _savedDesc) return;
-    _savedDesc = value;
-    await ref.read(appDatabaseProvider).resourcesDao.updateResource(
-          ResourcesCompanion(
-            id: Value(_resourceId),
-            description: Value(value.isEmpty ? null : value),
-          ),
-        );
-  }
+  // ── Chapter delete helpers ────────────────────────────────────────────────
 
   Future<void> _deleteChapter(BuildContext context, Chapter chapter) async {
     final db = ref.read(appDatabaseProvider);
@@ -117,7 +248,10 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
     );
 
     if (confirmed == true) {
-      await db.chaptersDao.deleteById(chapter.id);
+      setState(() {
+        _pendingDeletedChapterIds.add(chapter.id);
+        _pendingChapterOrder?.remove(chapter.id);
+      });
     }
   }
 
@@ -130,7 +264,8 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete chapters?'),
         content: Text(
-          'Delete ${ids.length} chapter${ids.length == 1 ? '' : 's'}? Associated highlights will also be deleted.',
+          'Delete ${ids.length} chapter${ids.length == 1 ? '' : 's'}? '
+          'Associated highlights will also be deleted.',
         ),
         actions: [
           TextButton(
@@ -146,7 +281,12 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
       ),
     );
     if (confirmed == true) {
-      await ref.read(appDatabaseProvider).chaptersDao.bulkDelete(ids);
+      setState(() {
+        _pendingDeletedChapterIds.addAll(ids);
+        for (final id in ids) {
+          _pendingChapterOrder?.remove(id);
+        }
+      });
       ref.read(resourceDetailMultiSelectProvider.notifier).clear();
     }
   }
@@ -163,7 +303,9 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
       builder: (ctx) => AlertDialog(
         title: Text('Delete "${resource.title}"?'),
         content: Text(
-          'This will permanently delete $highlightCount highlight${highlightCount == 1 ? '' : 's'} and $bookmarkCount bookmark${bookmarkCount == 1 ? '' : 's'}.',
+          'This will permanently delete $highlightCount '
+          'highlight${highlightCount == 1 ? '' : 's'} and '
+          '$bookmarkCount bookmark${bookmarkCount == 1 ? '' : 's'}.',
         ),
         actions: [
           TextButton(
@@ -189,13 +331,14 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
   Widget build(BuildContext context) {
     final resourceAsync = ref.watch(resourceStreamProvider(_resourceId));
     final chaptersAsync = ref.watch(resourceChaptersProvider(_resourceId));
+    final tagsAsync = ref.watch(tagsForResourceProvider(_resourceId));
+    final allTagsAsync = ref.watch(allTagsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final secondaryColor =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondary;
 
     final selected = ref.watch(resourceDetailMultiSelectProvider);
-    final selectNotifier =
-        ref.read(resourceDetailMultiSelectProvider.notifier);
+    final selectNotifier = ref.read(resourceDetailMultiSelectProvider.notifier);
     final isMultiSelect = selected.isNotEmpty;
 
     return resourceAsync.when(
@@ -214,20 +357,30 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
           );
         }
 
-        // Sync controller text on first load (don't overwrite while editing)
-        if (_savedTitle.isEmpty && resource.title.isNotEmpty) {
+        // One-time init from DB on first data load.
+        if (!_initialized) {
+          _initialized = true;
           _savedTitle = resource.title;
           _titleController.text = resource.title;
-        }
-        if (_savedDesc.isEmpty && resource.description != null) {
-          _savedDesc = resource.description!;
-          _descController.text = resource.description!;
+          _savedDesc = resource.description ?? '';
+          _descController.text = resource.description ?? '';
         }
 
-        final chapters = chaptersAsync.valueOrNull ?? [];
-        final chapterIds = chapters.map((c) => c.id).toList();
+        final dbChapters = chaptersAsync.valueOrNull ?? [];
+        final displayChapters = _computeDisplayChapters(dbChapters);
+        final chapterIds = displayChapters.map((c) => c.id).toList();
 
-        // ── AppBar: normal vs multi-select ────────────────────────────
+        // Effective tags = DB tags minus pending removes, plus pending adds.
+        final dbTags = tagsAsync.valueOrNull ?? [];
+        final allTags = allTagsAsync.valueOrNull ?? [];
+        final effectiveTags = [
+          ...dbTags.where((t) => !_pendingRemovedTagIds.contains(t.id)),
+          ...(_pendingAddedTagNames.asMap().entries.map(
+                (e) => Tag(id: -(e.key + 1), name: e.value),
+              )),
+        ];
+
+        // ── AppBar ────────────────────────────────────────────────────────
         final AppBar appBar = isMultiSelect
             ? AppBar(
                 leading: IconButton(
@@ -244,16 +397,19 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                   IconButton(
                     icon: const Icon(Icons.delete_outline),
                     tooltip: 'Delete selected',
-                    onPressed: () => _bulkDeleteChapters(
-                      context,
-                      selected.toList(),
-                    ),
+                    onPressed: () =>
+                        _bulkDeleteChapters(context, selected.toList()),
                   ),
                 ],
               )
             : AppBar(
                 title: const Text('Resource'),
                 actions: [
+                  IconButton(
+                    icon: const Icon(Icons.save_outlined),
+                    tooltip: 'Save',
+                    onPressed: _isDirty ? _saveAll : null,
+                  ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline),
                     tooltip: 'Delete resource',
@@ -263,33 +419,36 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
               );
 
         return PopScope(
-          // Intercept back press when in multi-select mode to exit it first
-          canPop: !isMultiSelect,
+          canPop: !isMultiSelect && !_isDirty,
           onPopInvokedWithResult: (didPop, _) {
-            if (!didPop) selectNotifier.clear();
+            if (didPop) return;
+            if (isMultiSelect) {
+              selectNotifier.clear();
+              return;
+            }
+            _showDiscardDialog();
           },
           child: Scaffold(
             appBar: appBar,
             body: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // ── Header: editable title + description ──────────────────
+                // ── Editable title (bottom border only) ───────────────────
                 TextField(
                   controller: _titleController,
-                  focusNode: _titleFocus,
                   style: Theme.of(context).textTheme.titleLarge,
                   decoration: const InputDecoration(
                     hintText: 'Resource title',
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+                    border: UnderlineInputBorder(),
+                    contentPadding: EdgeInsets.only(bottom: 4),
                   ),
-                  onSubmitted: (_) => _saveTitle(),
                   textInputAction: TextInputAction.next,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
+
+                // ── Editable description (bottom border, max 5 lines) ──────
                 TextField(
                   controller: _descController,
-                  focusNode: _descFocus,
                   style: Theme.of(context)
                       .textTheme
                       .bodyMedium!
@@ -297,11 +456,11 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                   decoration: InputDecoration(
                     hintText: 'Add a description…',
                     hintStyle: TextStyle(color: secondaryColor),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+                    border: const UnderlineInputBorder(),
+                    contentPadding: const EdgeInsets.only(bottom: 4),
                   ),
-                  maxLines: null,
-                  onSubmitted: (_) => _saveDesc(),
+                  maxLines: 5,
+                  minLines: 1,
                 ),
 
                 const Divider(height: 32),
@@ -315,7 +474,12 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                       .copyWith(color: secondaryColor),
                 ),
                 const SizedBox(height: 8),
-                TagInput(resourceId: _resourceId),
+                TagInput(
+                  currentTags: effectiveTags,
+                  allTags: allTags,
+                  onAdd: _onTagAdd,
+                  onRemove: _onTagRemove,
+                ),
 
                 const Divider(height: 32),
 
@@ -329,7 +493,7 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                 ),
                 const SizedBox(height: 8),
 
-                if (chapters.isEmpty)
+                if (displayChapters.isEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
@@ -338,21 +502,21 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                     ),
                   ),
 
-                if (chapters.isNotEmpty)
+                if (displayChapters.isNotEmpty)
                   isMultiSelect
                       ? _buildMultiSelectChapterList(
-                          context, chapters, selected, selectNotifier)
+                          context, displayChapters, selected, selectNotifier)
                       : _buildReorderableChapterList(
-                          context, chapters, secondaryColor),
+                          context, displayChapters, secondaryColor),
 
                 const SizedBox(height: 8),
 
                 // ── Import more chapters ──────────────────────────────────
-                if (!isMultiSelect) ...[
+                if (!isMultiSelect)
                   OutlinedButton.icon(
                     onPressed: () {
                       final existingUrls =
-                          chapters.map((c) => c.url).toList();
+                          dbChapters.map((c) => c.url).toList();
                       showImportBottomSheet(
                         context,
                         initialUrl: resource.url,
@@ -362,19 +526,6 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
                     icon: const Icon(Icons.add),
                     label: const Text('Import more chapters'),
                   ),
-
-                  const Divider(height: 32),
-
-                  // ── Delete resource ───────────────────────────────────────
-                  OutlinedButton(
-                    onPressed: () => _deleteResource(context, resource),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: const BorderSide(color: Colors.red),
-                    ),
-                    child: const Text('Delete Resource'),
-                  ),
-                ],
                 const SizedBox(height: 24),
               ],
             ),
@@ -413,15 +564,14 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
     );
   }
 
-  // ── Chapter list: normal mode (reorderable) ───────────────────────────────
+  // ── Chapter list: normal mode (reorderable, deferred) ────────────────────
 
   Widget _buildReorderableChapterList(
     BuildContext context,
     List<Chapter> chapters,
     Color secondaryColor,
   ) {
-    final selectNotifier =
-        ref.read(resourceDetailMultiSelectProvider.notifier);
+    final selectNotifier = ref.read(resourceDetailMultiSelectProvider.notifier);
 
     return ReorderableListView.builder(
       shrinkWrap: true,
@@ -432,10 +582,9 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
         final reordered = List<Chapter>.from(chapters);
         final item = reordered.removeAt(oldIndex);
         reordered.insert(newIndex, item);
-        ref
-            .read(appDatabaseProvider)
-            .chaptersDao
-            .reorder(reordered.map((c) => c.id).toList());
+        setState(() {
+          _pendingChapterOrder = reordered.map((c) => c.id).toList();
+        });
       },
       itemBuilder: (context, index) {
         final chapter = chapters[index];
@@ -443,7 +592,8 @@ class _ResourceDetailScreenState extends ConsumerState<ResourceDetailScreen> {
           key: ValueKey(chapter.id),
           leading: chapter.isDone
               ? const Icon(Icons.check_circle, color: AppColors.accent)
-              : const Icon(Icons.radio_button_unchecked, color: AppColors.accent),
+              : const Icon(Icons.radio_button_unchecked,
+                  color: AppColors.accent),
           title: Text(
             chapter.title,
             style: chapter.isDone

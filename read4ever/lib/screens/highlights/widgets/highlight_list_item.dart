@@ -79,8 +79,7 @@ class _HighlightListItemState extends State<HighlightListItem> {
           : Colors.transparent,
       child: InkWell(
         onTap: widget.isMultiSelectMode ? widget.onToggleSelect : widget.onTap,
-        onLongPress:
-            widget.isMultiSelectMode ? null : widget.onLongPress,
+        onLongPress: widget.isMultiSelectMode ? null : widget.onLongPress,
         onDoubleTap: widget.isMultiSelectMode ? null : _toggleExpanded,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

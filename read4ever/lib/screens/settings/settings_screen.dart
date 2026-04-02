@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../providers/theme_provider.dart';
-import '../../db/database.dart';
 import '../../providers/database_provider.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -67,7 +66,8 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: const Text(
               'Permanently removes all resources, chapters, highlights, and bookmarks',
             ),
-            leading: const Icon(Icons.delete_forever_outlined, color: Colors.red),
+            leading:
+                const Icon(Icons.delete_forever_outlined, color: Colors.red),
             onTap: () => _confirmDeleteAll(context, ref),
           ),
         ],

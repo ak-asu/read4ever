@@ -1,108 +1,91 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../db/database.dart';
-import '../../../providers/database_provider.dart';
-import '../../../providers/tags_provider.dart';
 import '../../../theme/app_colors.dart';
 
 /// Tag chip row + autocomplete text field.
-/// Displays tags as deletable InputChips and allows adding new or existing tags.
-class TagInput extends ConsumerStatefulWidget {
-  final int resourceId;
+/// Stateless regarding DB — parent owns the tag state and provides callbacks.
+class TagInput extends StatefulWidget {
+  final List<Tag> currentTags;
+  final List<Tag> allTags;
+  final void Function(String name) onAdd;
+  final void Function(Tag tag) onRemove;
 
-  const TagInput({super.key, required this.resourceId});
+  const TagInput({
+    super.key,
+    required this.currentTags,
+    required this.allTags,
+    required this.onAdd,
+    required this.onRemove,
+  });
 
   @override
-  ConsumerState<TagInput> createState() => _TagInputState();
+  State<TagInput> createState() => _TagInputState();
 }
 
-class _TagInputState extends ConsumerState<TagInput> {
-  final _controller = TextEditingController();
-  final _focusNode = FocusNode();
+class _TagInputState extends State<TagInput> {
+  // Captured from fieldViewBuilder so onSelected can re-focus the input.
+  FocusNode? _fieldFocusNode;
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  Future<void> _addTag(String name) async {
-    final trimmed = name.trim().replaceAll(',', '').trim();
-    if (trimmed.isEmpty) return;
-    _controller.clear();
-    await ref
-        .read(appDatabaseProvider)
-        .tagsDao
-        .addTagToResource(widget.resourceId, trimmed);
-  }
-
-  Future<void> _removeTag(Tag tag) async {
-    await ref
-        .read(appDatabaseProvider)
-        .tagsDao
-        .removeTagFromResource(widget.resourceId, tag.id);
+  void _submit(TextEditingController fieldController) {
+    final text = fieldController.text.trim();
+    if (text.isEmpty) return;
+    widget.onAdd(text);
+    fieldController.clear();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _fieldFocusNode?.requestFocus();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final tagsAsync = ref.watch(tagsForResourceProvider(widget.resourceId));
-    final allTagsAsync = ref.watch(allTagsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final secondaryColor =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondary;
-
-    final currentTags = tagsAsync.valueOrNull ?? [];
-    final currentTagNames = currentTags.map((t) => t.name).toSet();
-    final allTags = allTagsAsync.valueOrNull ?? [];
+    final currentTagNames =
+        widget.currentTags.map((t) => t.name.toLowerCase()).toSet();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Chip row — shown only when tags exist
-        if (currentTags.isNotEmpty)
+        // ── Chip row ──────────────────────────────────────────────────────
+        if (widget.currentTags.isNotEmpty)
           Wrap(
             spacing: 6,
             runSpacing: 4,
-            children: currentTags
+            children: widget.currentTags
                 .map(
                   (tag) => InputChip(
                     label: Text(tag.name),
-                    onDeleted: () => _removeTag(tag),
+                    onDeleted: () => widget.onRemove(tag),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
                   ),
                 )
                 .toList(),
           ),
-        if (currentTags.isNotEmpty) const SizedBox(height: 8),
+        if (widget.currentTags.isNotEmpty) const SizedBox(height: 8),
 
-        // Autocomplete field
+        // ── Autocomplete + trailing + button ──────────────────────────────
         Autocomplete<Tag>(
           optionsBuilder: (textEditingValue) {
             final input = textEditingValue.text.trim().toLowerCase();
             if (input.isEmpty) return const Iterable.empty();
-            return allTags.where((t) =>
-                t.name.toLowerCase().startsWith(input) &&
-                !currentTagNames.contains(t.name));
+            return widget.allTags.where(
+              (t) =>
+                  t.name.toLowerCase().startsWith(input) &&
+                  !currentTagNames.contains(t.name.toLowerCase()),
+            );
           },
           displayStringForOption: (tag) => tag.name,
           onSelected: (tag) {
-            _addTag(tag.name);
-            // Re-focus so the user can keep adding
+            widget.onAdd(tag.name);
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _focusNode.requestFocus();
+              if (mounted) _fieldFocusNode?.requestFocus();
             });
           },
           fieldViewBuilder: (context, fieldController, fieldFocusNode, _) {
-            // Keep our local controller in sync with the Autocomplete controller
-            fieldController.addListener(() {
-              if (fieldController.text != _controller.text) {
-                _controller.text = fieldController.text;
-              }
-            });
+            _fieldFocusNode = fieldFocusNode;
             return TextField(
               controller: fieldController,
               focusNode: fieldFocusNode,
@@ -112,13 +95,16 @@ class _TagInputState extends ConsumerState<TagInput> {
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.add, size: 20),
+                  tooltip: 'Add tag',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => _submit(fieldController),
+                ),
               ),
               style: Theme.of(context).textTheme.bodyMedium,
-              inputFormatters: [
-                // Intercept comma → treat as submit
-                _CommaSplitter(onCommit: _addTag),
-              ],
-              onSubmitted: _addTag,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(fieldController),
             );
           },
           optionsViewBuilder: (context, onSelected, options) {
@@ -149,32 +135,5 @@ class _TagInputState extends ConsumerState<TagInput> {
         ),
       ],
     );
-  }
-}
-
-/// TextInputFormatter that intercepts comma characters and fires [onCommit]
-/// with the text typed so far, then clears the field.
-class _CommaSplitter extends TextInputFormatter {
-  final void Function(String) onCommit;
-  _CommaSplitter({required this.onCommit});
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (newValue.text.contains(',')) {
-      final parts = newValue.text.split(',');
-      for (final part in parts.sublist(0, parts.length - 1)) {
-        if (part.trim().isNotEmpty) onCommit(part);
-      }
-      // Keep the text after the last comma in the field
-      final remaining = parts.last;
-      return TextEditingValue(
-        text: remaining,
-        selection: TextSelection.collapsed(offset: remaining.length),
-      );
-    }
-    return newValue;
   }
 }

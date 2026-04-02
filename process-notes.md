@@ -132,6 +132,24 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 
 ## /build
 
+### Step 14: Android share sheet integration
+
+**What was built:**
+- `android/app/src/main/AndroidManifest.xml` — added `ACTION_SEND / text/*` intent filter inside the existing `<activity>` block per `flutter_sharing_intent` package documentation
+- `lib/services/intent_handler.dart` — `IntentHandler` service: subscribes to `getMediaStream()` for warm opens and calls `getInitialSharing()` for cold starts; extracts URL from `SharedFile.value`; checks `appRouter.routerDelegate.currentConfiguration.uri.path` to avoid opening a second import screen if one is already on the stack; pushes `/import` with the URL as a route `extra`
+- `lib/router.dart` — `/import` route builder updated to read `state.extra as String?` and pass it as `initialUrl` to `ImportScreen`
+- `lib/screens/import/import_screen.dart` — `ImportScreen` gains an `initialUrl` constructor parameter; when set, it passes `autoDiscover: true` to `showImportBottomSheet` so discovery starts immediately without the user tapping Scan; `ImportBottomSheet` gains an `autoDiscover` flag that triggers `importNotifier.discover()` in the same post-frame callback that sets the URL
+- `lib/app.dart` — converted from `ConsumerWidget` to `ConsumerStatefulWidget`; `IntentHandler` initialized in `initState` and disposed in `dispose`
+
+**Key design decision — URL via route extra instead of pre-setting the provider:**
+The `importNotifierProvider` is `autoDispose`. Setting the URL on it from the `IntentHandler` before pushing `/import` creates a timing race: the provider is scheduled for disposal after the current frame, and `ImportScreen` might not have mounted and started watching it before disposal fires. Passing the URL as a go_router `extra` (a `String?`) sidesteps this entirely — the URL travels with the navigation event itself and arrives in `ImportScreen`'s constructor before any widget builds. No autoDispose concerns, no global state, no timing sensitivity.
+
+**Issues:** None. `flutter analyze` — no issues on all 4 changed files.
+
+**Verification:** Learner to test on Android device/emulator: (1) warm open — share URL from Chrome while app is running → confirm import dialog opens with URL pre-filled and scan already started; (2) cold start — kill app, share URL from Chrome → confirm app launches directly to import dialog; (3) duplicate detection — share an already-imported URL → confirm it navigates to the existing resource directly.
+
+---
+
 ### Step 11: Resource Detail screen — inline editing, tags, chapter list, delete
 
 **What was built:**
@@ -374,3 +392,37 @@ Flutter/Drift/Riverpod/go_router were fully pre-decided. The /spec conversation 
 **Issues:** None. All dependencies resolved cleanly.
 
 **Verification:** Pending — learner to run `flutter run` and confirm DM Sans renders, teal accent visible, no errors.
+
+### Step 12: Settings screen + theme persistence
+
+**What was built:**
+- `lib/providers/theme_provider.dart` — `sharedPreferencesProvider` (keepAlive, overridden before runApp) + `ThemeNotifier` (keepAlive, reads stored theme from SharedPreferences on build, persists on setTheme)
+- `lib/main.dart` — updated to `async`, initializes `SharedPreferences.getInstance()` before `runApp`, injects via `ProviderScope(overrides: [...])`
+- `lib/app.dart` — updated to `ConsumerWidget`, watches `themeNotifierProvider` and passes it to `MaterialApp.router themeMode:`
+- `lib/screens/settings/settings_screen.dart` — full implementation: `SegmentedButton<ThemeMode>` (Light / Dark / System), Delete All Data `ListTile` with red destructive styling, `AlertDialog` with warning copy, confirm → `HighlightsDao.deleteAll()` + `ResourcesDao.deleteAll()` + `TagsDao.deleteAll()` + `context.go('/library')`
+- Ran `build_runner` — generated `theme_provider.g.dart` without errors
+
+**Issues:** None. Pre-existing drift_dev warning on `chapters` reference in resources table (unrelated to this step).
+
+**Verification:** Pending — learner to confirm theme persists across restarts and Delete All Data clears everything.
+
+### Step 13: Multi-select pattern — Highlights, Bookmarks, ResourceDetail
+
+**What was built:**
+- `lib/providers/multi_select_provider.dart` — shared `MultiSelectNotifier` (`AutoDisposeNotifier<Set<int>>`) with `toggle`, `selectAll`, `clear`. Three named provider instances: `highlightsMultiSelectProvider`, `bookmarksMultiSelectProvider`, `resourceDetailMultiSelectProvider`. Auto-dispose ensures each screen instance gets fresh state.
+- `lib/screens/highlights/widgets/highlight_list_item.dart` — extended with `isMultiSelectMode`, `isSelected`, `onLongPress`, `onToggleSelect` params. In multi-select mode: tap → toggle select, leading shows `Checkbox`, double-tap expand hidden. In normal mode: unchanged behavior. Selected items get a tinted background.
+- `lib/screens/highlights/highlights_screen.dart` — watches `highlightsMultiSelectProvider`. Multi-select active when `selected.isNotEmpty`. Shows `_MultiSelectBar` (count + Select All + Clear + Delete) at top of Column when active. Filter bar hidden during multi-select (less noise). Long press on any item enters multi-select. Bulk delete shows confirm dialog, then calls `HighlightsDao.bulkDelete`.
+- `lib/screens/bookmarks/widgets/bookmark_list_item.dart` — same multi-select params added to `BookmarkListItem`. Uses `ListTile.leading` for `Checkbox` in multi-select mode.
+- `lib/screens/bookmarks/bookmarks_screen.dart` — same pattern. Bulk action is "Remove bookmarks" (calls `ChaptersDao.bulkUnbookmark`, does NOT delete chapters). `_MultiSelectBar` uses bookmark-remove icon instead of trash.
+- `lib/screens/resource_detail/resource_detail_screen.dart` — since ResourceDetail has its own Scaffold+AppBar, AppBar transforms properly (not in-body bar). In multi-select mode: AppBar shows close button + "N selected" + "Select all" + delete. Chapters rendered as a plain `Column` of checkable `ListTile`s in multi-select mode, and as `ReorderableListView` in normal mode. `PopScope` intercepts back press to exit multi-select before navigating away. Confirm dialog for bulk chapter delete mentions highlights will also be deleted.
+
+**Design decisions:**
+- **In-body action bar for shell routes (Highlights/Bookmarks)**: DrawerScaffold controls the AppBar for shell routes and doesn't have cross-widget AppBar transformation hooks. Rather than coupling DrawerScaffold to per-screen state, a `_MultiSelectBar` widget appears inside the body Column when multi-select is active. Functionally identical to AppBar transformation; cleaner architectural boundary.
+- **Proper AppBar transformation for ResourceDetail**: Since ResourceDetail is a full-screen route with its own Scaffold, it can own its AppBar. The screen watches `resourceDetailMultiSelectProvider` and switches between two `AppBar` configurations.
+- **Auto-dispose scoping**: Three separate named provider instances (one per screen) rather than a family. Auto-dispose guarantees each screen gets fresh selection state on mount — no stale selections bleeding across sessions.
+- **`PopScope` in ResourceDetail**: Intercepts the Android back gesture/button to exit multi-select mode before popping the route, matching standard UX expectations.
+- **Two chapter list implementations**: `_buildReorderableChapterList` (normal, drag-to-reorder) vs `_buildMultiSelectChapterList` (checkboxes, no drag handles). Switching between them on `isMultiSelect` change is cleaner than toggling handle visibility inline.
+
+**Issues:** None. `flutter analyze` — no new issues (one pre-existing unused import in settings_screen.dart unrelated to this step).
+
+**Verification:** Pending — learner to run all 3 multi-select flows per checklist acceptance criteria.

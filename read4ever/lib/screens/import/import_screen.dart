@@ -28,7 +28,8 @@ class _ImportScreenState extends State<ImportScreen> {
       await showImportBottomSheet(
         context,
         initialUrl: widget.initialUrl,
-        autoDiscover: widget.initialUrl != null && widget.initialUrl!.isNotEmpty,
+        autoDiscover:
+            widget.initialUrl != null && widget.initialUrl!.isNotEmpty,
       );
       if (mounted) Navigator.of(context).pop();
     });
@@ -93,13 +94,14 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
   @override
   void initState() {
     super.initState();
-    final initialUrl =
-        widget.initialUrl ?? ref.read(importNotifierProvider).url;
-    _urlController = TextEditingController(text: initialUrl);
-    if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
-      // Sync pre-filled URL into provider state and optionally start discovery.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
+    // Always initialise from widget.initialUrl (never stale provider state).
+    _urlController = TextEditingController(text: widget.initialUrl ?? '');
+    // Reset any stale discovery state from a previous import session, then
+    // optionally sync the pre-filled URL and start auto-discovery.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(importNotifierProvider.notifier).reset();
+      if (widget.initialUrl != null && widget.initialUrl!.isNotEmpty) {
         ref.read(importNotifierProvider.notifier).setUrl(widget.initialUrl!);
         if (widget.autoDiscover) {
           ref.read(importNotifierProvider.notifier).discover(
@@ -107,8 +109,8 @@ class _ImportBottomSheetState extends ConsumerState<ImportBottomSheet> {
                 excludeUrls: widget.excludeUrls,
               );
         }
-      });
-    }
+      }
+    });
   }
 
   @override

@@ -27,11 +27,17 @@ class TagsDao extends DatabaseAccessor<AppDatabase> with _$TagsDaoMixin {
         ..orderBy([(t) => OrderingTerm.asc(t.name)]))
       .watch();
 
-  // Upserts the tag by name, then inserts the junction row
+  // Finds existing tag by name (avoiding the name UNIQUE constraint clash with
+  // insertOnConflictUpdate which uses ON CONFLICT(id)), then inserts the junction row.
   Future<void> addTagToResource(int resourceId, String name) async {
-    final tagId = await into(tags).insertOnConflictUpdate(
-      TagsCompanion.insert(name: name),
-    );
+    final existing = await (select(tags)..where((t) => t.name.equals(name)))
+        .getSingleOrNull();
+    final int tagId;
+    if (existing != null) {
+      tagId = existing.id;
+    } else {
+      tagId = await into(tags).insert(TagsCompanion.insert(name: name));
+    }
     await into(resourceTags).insertOnConflictUpdate(
       ResourceTagsCompanion.insert(resourceId: resourceId, tagId: tagId),
     );

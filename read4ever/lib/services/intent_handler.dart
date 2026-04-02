@@ -31,8 +31,7 @@ class IntentHandler {
     if (url == null) return;
 
     // Don't open a second import screen if one is already on the stack.
-    final currentPath =
-        appRouter.routerDelegate.currentConfiguration.uri.path;
+    final currentPath = appRouter.routerDelegate.currentConfiguration.uri.path;
     if (currentPath == '/import') return;
 
     appRouter.push('/import', extra: url);
